@@ -14,7 +14,7 @@ import { generateId } from '../../shared/utils/id-generator';
 
 /** JWT payload 结构 */
 export interface JwtPayload {
-  sub: string;   // user id
+  sub: string; // user id
   email: string;
   username: string;
 }

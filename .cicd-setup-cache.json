@@ -22,10 +22,10 @@
   "db.dev.port": "5432",
   "db.dev.username": "202601t2",
   "db.dev.password": "t2password",
-  "db.dev.dbName": "t2dev",
+  "db.dev.dbName": "202601t2dev",
   "db.prod.host": "localhost",
   "db.prod.port": "5432",
   "db.prod.username": "202601t2",
   "db.prod.password": "t2password",
-  "db.prod.dbName": "t2prod"
+  "db.prod.dbName": "202601t2prod"
 }
