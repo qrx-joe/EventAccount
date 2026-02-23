@@ -1,10 +1,17 @@
-import { Injectable, UnauthorizedException, Logger } from '@nestjs/common';
+import {
+  Injectable,
+  UnauthorizedException,
+  BadRequestException,
+  Logger,
+} from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { JwtService } from '@nestjs/jwt';
 import * as bcrypt from 'bcrypt';
 import { UserEntity } from '../user/user.entity';
 import { UserService } from '../user/user.service';
+import { VerificationService } from '../verification/verification.service';
+import { VerificationCodeType } from '../verification/verification.dto';
 import { RegisterDto, LoginDto, JwtPayload } from './auth.dto';
 
 /**
@@ -20,11 +27,22 @@ export class AuthService {
     private readonly userRepo: Repository<UserEntity>,
     private readonly jwtService: JwtService,
     private readonly userService: UserService,
+    private readonly verificationService: VerificationService,
   ) {}
 
-  /** 注册 */
+  /** 注册：校验验证码 → 创建用户 → 签发 token */
   async register(dto: RegisterDto): Promise<{ token: string }> {
-    // 委托 UserService 创建用户（M-03: 消除重复用户创建逻辑）
+    // 校验短信验证码
+    const valid = this.verificationService.verifyCode(
+      dto.phone,
+      VerificationCodeType.REGISTER,
+      dto.smsCode,
+    );
+    if (!valid) {
+      throw new BadRequestException('验证码无效或已过期');
+    }
+
+    // 委托 UserService 创建用户
     const user = await this.userService.create({
       phone: dto.phone,
       password: dto.password,

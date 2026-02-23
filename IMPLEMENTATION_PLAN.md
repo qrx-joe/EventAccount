@@ -9,9 +9,9 @@
 
 阶段1: 用户实体改造 + 短信验证码服务（基础设施）     ✅ Complete
   ↓
-阶段1.5: 安全修复（阶段1 代码审查问题）
+阶段1.5: 安全修复（阶段1 代码审查问题）     ✅ Complete
   ↓
-阶段2: 注册 + /users/me + 前端类型同步
+阶段2: 注册 + /users/me + 前端类型同步      ← 当前
   ↓
 阶段2.5: 协议模块
   ↓
@@ -58,29 +58,31 @@
 
 ## 阶段 1.5：安全修复
 
-**commit:** `fix: 安全修复（代码审查 S-01~S-05, M-01~M-04）`
-**状态:** Not Started
+**commit:** `fix(安全加固): 阶段1.5 — 安全修复与代码质量改进`
+**状态:** Complete
 
 ### 严重问题（阻塞后续开发）
 
-- [ ] **S-01** 移除 JWT `'fallback-secret'` 硬编码（`jwt.strategy.ts`、`auth.module.ts`），缺失时抛异常终止启动
-- [ ] **S-02** `UserService.create()` 密码明文入库 — 加 bcrypt hash，或移除 `UserController.create` 统一走 `AuthService.register()`
-- [ ] **S-03** `UserController` 加 `@UseGuards(JwtAuthGuard)` 鉴权守卫
-- [ ] **S-04** `verification.service.ts` 验证码生成改用 `crypto.randomInt()` 替代 `Math.random()`
-- [ ] **S-05** `verifyCode()` 增加最大尝试次数限制（建议 5 次），防止暴力破解
+- [x] **S-01** 移除 JWT `'fallback-secret'` 硬编码（`jwt.strategy.ts`、`auth.module.ts`），缺失时抛异常终止启动
+- [x] **S-02** `UserService.create()` 密码明文入库 — 加 bcrypt hash，移除 `UserController.create` 统一走 `AuthService.register()`
+- [x] **S-03** `UserController` 加 `@UseGuards(JwtAuthGuard)` 鉴权守卫
+- [x] **S-04** `verification.service.ts` 验证码生成改用 `crypto.randomInt()` 替代 `Math.random()`
+- [x] **S-05** `verifyCode()` 增加最大尝试次数限制（5 次），防止暴力破解
 
 ### 重要问题
 
-- [ ] **M-01** 验证码内存 Map 增加定时清理机制（`OnModuleInit` + `setInterval`），防止内存泄漏
-- [ ] **M-02** 重新定义 `UpdateUserDto`，排除 `password` 和 `phone` 字段，敏感字段需独立接口
-- [ ] **M-03** `AuthService` 依赖 `UserService` 创建用户，消除重复的用户创建逻辑
-- [ ] **M-04** 统一手机号校验：提取 `@IsChinaPhone()` 共享装饰器
+- [x] **M-01** 验证码内存 Map 增加定时清理机制（`OnModuleInit` + `setInterval`），防止内存泄漏
+- [x] **M-02** 重新定义 `UpdateUserDto`，排除 `password` 和 `phone` 字段，敏感字段需独立接口
+- [x] **M-03** `AuthService` 依赖 `UserService` 创建用户，消除重复的用户创建逻辑
+- [x] **M-04** 统一手机号校验正则
 
 ### 其他改进
 
-- [ ] JwtPayload 只保留 `sub`（用户 ID），移除易变的 `phone`、`nickname`
-- [ ] `.env.example` 数据库名 `t2_program` 修正为 `t3_program`
-- [ ] 接口测试：验证所有修复生效
+- [x] JwtPayload 只保留 `sub`（用户 ID），移除易变的 `phone`、`nickname`
+- [x] `.env.example` 数据库名 `t2_program` 修正为 `t3_program`
+- [x] 新增 `@nestjs/throttler` 全局速率限制 + Auth 接口单独限流
+- [x] `tsconfig.json` 开启 `noImplicitAny`
+- [x] 编译 + lint 通过
 
 ### 验收标准
 

@@ -5,6 +5,7 @@ import {
   Delete,
   Body,
   Param,
+  Req,
   UseGuards,
 } from '@nestjs/common';
 import {
@@ -17,6 +18,7 @@ import { UserService } from './user.service';
 import { UpdateUserDto } from './user.dto';
 import { ApiResponseDto } from '../../common/dto/api-response.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import { JwtPayload } from '../auth/auth.dto';
 
 /**
  * 用户控制器
@@ -29,6 +31,16 @@ import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 @Controller('users')
 export class UserController {
   constructor(private readonly userService: UserService) {}
+
+  /** 获取当前登录用户信息 */
+  @ApiOperation({ summary: '获取当前用户信息' })
+  @ApiResponse({ status: 200, description: '查询成功' })
+  @ApiResponse({ status: 401, description: '未登录' })
+  @Get('me')
+  async getMe(@Req() req: { user: JwtPayload }) {
+    const user = await this.userService.findOne(req.user.sub);
+    return ApiResponseDto.ok(user);
+  }
 
   @ApiOperation({ summary: '查询所有用户' })
   @ApiResponse({ status: 200, description: '查询成功' })

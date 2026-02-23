@@ -16,6 +16,11 @@ export class RegisterDto {
   @Matches(PHONE_REGEX, { message: '手机号格式不正确' })
   phone: string;
 
+  @ApiProperty({ description: '短信验证码（6位数字）', example: '123456' })
+  @IsString()
+  @Length(6, 6, { message: '验证码为6位数字' })
+  smsCode: string;
+
   @ApiProperty({ description: '密码（6-128位）', example: 'password123' })
   @IsString()
   @Length(6, 128)
