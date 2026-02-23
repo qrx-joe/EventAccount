@@ -1,31 +1,34 @@
 # 用户模块开发计划
 
-> 基于技术依赖链拆分，共 7 个阶段
+> 统一分支 `feature/user-module`，按阶段 commit，共 7 个阶段
 
 ## 阶段总览
 
 ```
+分支: feature/user-module（全程使用，按阶段提交）
+
 阶段1: 用户实体改造 + 短信验证码服务（基础设施）     ✅ Complete
   ↓
 阶段1.5: 安全修复（阶段1 代码审查问题）
   ↓
 阶段2: 注册 + /users/me + 前端类型同步
   ↓
-阶段2.5: 协议模块（独立）
+阶段2.5: 协议模块
   ↓
 阶段3: 登录（短信 + 密码双通道）
   ↓
 阶段4: 忘记密码 / 重置
   ↓
 阶段5: 微信授权登录
+
+完成后合并到 develop，squash 或保留 commit 均可
 ```
 
 ---
 
 ## 阶段 1：用户实体改造 + 短信验证码服务
 
-**分支:** `feature/user-entity-sms`
-**目标:** 完成用户数据模型改造和短信基础设施，为后续所有功能提供基础
+**commit:** `feat: 用户实体改造 + 短信验证码服务`
 **状态:** Complete
 
 ### 后端
@@ -37,35 +40,25 @@
   - 新增 `avatar`（头像 URL）、`bio`（个性签名）字段
 - [x] 同步更新 `user.dto.ts`、`user.service.ts`、`user.controller.ts`
 - [x] 同步更新 `auth.service.ts`、`auth.dto.ts`（phone 替代 email，nickname 替代 username，JwtPayload 改为 `{ sub, phone, nickname }`）
-- [x] 实现 `JwtAuthGuard`（`src/modules/auth/guards/jwt-auth.guard.ts`）+ `JwtStrategy`（`src/modules/auth/strategies/jwt.strategy.ts`），AuthModule 导出供其他模块使用
+- [x] 实现 `JwtAuthGuard` + `JwtStrategy`，AuthModule 导出供其他模块使用
 - [x] 新建验证码模块 `src/modules/verification/`
-  - `verification.service.ts` — 验证码生成（6位）、内存缓存校验、过期机制（5分钟）+ 阿里云短信 SDK（`@alicloud/dysmsapi20170525`）发送
-  - `verification.controller.ts` — `POST /api/auth/sms/send`
-  - `verification.dto.ts` — phone + type 参数校验
-  - `verification.module.ts`
-- [x] 新建 `src/config/sms.config.ts` — AccessKeyId、AccessKeySecret、签名（SignName）、模板 Code（TemplateCode）、endpoint（dysmsapi.aliyuncs.com）
-- [x] 安装阿里云 SMS SDK 依赖：`@alicloud/dysmsapi20170525`、`@alicloud/openapi-client`、`@alicloud/tea-util`
+- [x] 新建 `src/config/sms.config.ts`
+- [x] 安装阿里云 SMS SDK 依赖
 - [x] 更新 `.env.example` 和 `.env.dev` 补充短信服务配置项
-- [x] 修复 `app.module.ts` envFilePath 配置（原始代码未指定 envFilePath，导致 .env.dev 未加载）
+- [x] 修复 `app.module.ts` envFilePath 配置
 - [x] 接口测试：验证码发送 + 实体 CRUD + JwtAuthGuard 鉴权
-
-### 前端
-
-- [x] 阶段1 前端无页面改动（基础设施阶段）
 
 ### 验收标准
 
 - `POST /api/auth/sms/send` 能正常发送验证码
 - 用户实体字段改造完成，数据库同步成功
-- 编译无错误，现有测试通过
+- 编译无错误
 
 ---
 
 ## 阶段 1.5：安全修复
 
-**分支:** `feature/user-entity-sms`（不开新分支，Stage 1 收尾）
-**目标:** 修复代码审查发现的安全和架构问题，为后续阶段提供干净的基础
-**依赖:** 阶段1
+**commit:** `fix: 安全修复（代码审查 S-01~S-05, M-01~M-04）`
 **状态:** Not Started
 
 ### 严重问题（阻塞后续开发）
@@ -81,7 +74,7 @@
 - [ ] **M-01** 验证码内存 Map 增加定时清理机制（`OnModuleInit` + `setInterval`），防止内存泄漏
 - [ ] **M-02** 重新定义 `UpdateUserDto`，排除 `password` 和 `phone` 字段，敏感字段需独立接口
 - [ ] **M-03** `AuthService` 依赖 `UserService` 创建用户，消除重复的用户创建逻辑
-- [ ] **M-04** 统一手机号校验：提取 `@IsChinaPhone()` 共享装饰器，替换 auth.dto.ts 的自定义正则和 verification.dto.ts 的 `@IsMobilePhone('zh-CN')`
+- [ ] **M-04** 统一手机号校验：提取 `@IsChinaPhone()` 共享装饰器
 
 ### 其他改进
 
@@ -100,9 +93,7 @@
 
 ## 阶段 2：注册
 
-**分支:** `feature/user-register`
-**目标:** 用户能通过手机号 + 短信验证码 + 密码完成注册
-**依赖:** 阶段1.5
+**commit:** `feat: 注册（手机号+验证码+密码）+ /users/me + 前端类型同步`
 **状态:** Not Started
 
 ### 后端
@@ -137,9 +128,7 @@
 
 ## 阶段 2.5：协议模块
 
-**分支:** `feature/user-agreement`
-**目标:** 独立的协议签署模块，注册流程可选集成
-**依赖:** 阶段2
+**commit:** `feat: 协议模块（注册协议签署）`
 **状态:** Not Started
 
 ### 后端
@@ -153,6 +142,8 @@
   - `agreement.module.ts` — 模块注册
 - [ ] 注册流程集成：注册成功后自动签署 `user-terms` 和 `privacy-policy`
 - [ ] 接口测试：协议 CRUD + 签署记录
+
+> 注：报名协议、缴费协议属于活动模块/支付模块，不在本阶段范围
 
 ### 前端
 
@@ -169,9 +160,7 @@
 
 ## 阶段 3：登录（短信 + 密码）
 
-**分支:** `feature/user-login`
-**目标:** 用户能通过短信验证码或密码登录
-**依赖:** 阶段2
+**commit:** `feat: 登录（短信验证码 + 密码双通道）`
 **状态:** Not Started
 
 ### 后端
@@ -203,9 +192,7 @@
 
 ## 阶段 4：忘记密码 / 重置
 
-**分支:** `feature/user-password-reset`
-**目标:** 用户能通过手机号或邮箱重置密码
-**依赖:** 阶段3
+**commit:** `feat: 忘记密码 / 密码重置（手机号 + 邮箱）`
 **状态:** Not Started
 
 ### 后端
@@ -236,9 +223,7 @@
 
 ## 阶段 5：微信授权登录
 
-**分支:** `feature/user-wechat-auth`
-**目标:** 用户能通过微信扫码/点击授权登录
-**依赖:** 阶段3
+**commit:** `feat: 微信授权登录`
 **状态:** Not Started
 
 ### 后端
