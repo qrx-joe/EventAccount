@@ -1,12 +1,12 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { TypeOrmModule } from '@nestjs/typeorm';
+import { ThrottlerModule } from '@nestjs/throttler';
 import databaseConfig from './config/database.config';
 import smsConfig from './config/sms.config';
 import { UserModule } from './modules/user/user.module';
 import { AuthModule } from './modules/auth/auth.module';
 import { VerificationModule } from './modules/verification/verification.module';
-
 @Module({
   imports: [
     // 全局配置模块，加载 .env 文件
@@ -31,6 +31,14 @@ import { VerificationModule } from './modules/verification/verification.module';
         logging: config.get<string>('NODE_ENV') === 'development',
       }),
     }),
+
+    // 全局速率限制：60 秒内最多 60 次请求
+    ThrottlerModule.forRoot([
+      {
+        ttl: 60000,
+        limit: 60,
+      },
+    ]),
 
     UserModule,
     AuthModule,

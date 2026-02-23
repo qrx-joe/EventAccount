@@ -6,7 +6,7 @@ import {
   Length,
   Matches,
 } from 'class-validator';
-import { ApiProperty, PartialType } from '@nestjs/swagger';
+import { ApiProperty } from '@nestjs/swagger';
 
 /** 创建用户请求体 */
 export class CreateUserDto {
@@ -65,5 +65,43 @@ export class CreateUserDto {
   bio?: string;
 }
 
-/** 更新用户请求体（所有字段可选） */
-export class UpdateUserDto extends PartialType(CreateUserDto) {}
+/** 更新用户请求体（仅允许更新昵称、邮箱、头像、签名） */
+export class UpdateUserDto {
+  @ApiProperty({
+    description: '昵称',
+    example: '张三',
+    required: false,
+  })
+  @IsOptional()
+  @IsString()
+  @Length(1, 64)
+  nickname?: string;
+
+  @ApiProperty({
+    description: '邮箱',
+    example: 'zhangsan@example.com',
+    required: false,
+  })
+  @IsOptional()
+  @IsEmail()
+  email?: string;
+
+  @ApiProperty({
+    description: '头像 URL',
+    example: 'https://example.com/avatar.png',
+    required: false,
+  })
+  @IsOptional()
+  @IsUrl()
+  avatar?: string;
+
+  @ApiProperty({
+    description: '个性签名',
+    example: '这个人很懒，什么都没留下',
+    required: false,
+  })
+  @IsOptional()
+  @IsString()
+  @Length(0, 200)
+  bio?: string;
+}

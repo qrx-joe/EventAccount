@@ -1,8 +1,13 @@
-import { Injectable, Logger, BadRequestException } from '@nestjs/common';
+import {
+  Injectable,
+  Logger,
+  BadRequestException,
+  OnModuleInit,
+  OnModuleDestroy,
+} from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import Dysmsapi20170525, {
-  SendSmsRequest,
-} from '@alicloud/dysmsapi20170525';
+import { randomInt } from 'crypto';
+import Dysmsapi20170525, { SendSmsRequest } from '@alicloud/dysmsapi20170525';
 import { Config as OpenApiConfig } from '@alicloud/openapi-client';
 import { RuntimeOptions } from '@alicloud/tea-util';
 import { VerificationCodeType } from './verification.dto';
@@ -11,6 +16,8 @@ import { VerificationCodeType } from './verification.dto';
 interface CodeEntry {
   code: string;
   expiresAt: number;
+  /** 已尝试验证次数 */
+  attempts: number;
 }
 
 /** 频率限制缓存条目 */
@@ -18,12 +25,18 @@ interface RateLimitEntry {
   nextAllowedAt: number;
 }
 
+/** 最大验证尝试次数 */
+const MAX_VERIFY_ATTEMPTS = 5;
+
+/** 清理过期条目的间隔（10 分钟） */
+const CLEANUP_INTERVAL_MS = 10 * 60 * 1000;
+
 /**
  * 验证码服务
  * 负责验证码的生成、发送（阿里云 SMS / Mock）、校验
  */
 @Injectable()
-export class VerificationService {
+export class VerificationService implements OnModuleInit, OnModuleDestroy {
   private readonly logger = new Logger(VerificationService.name);
 
   /** 验证码存储：key = "phone:type" */
@@ -39,8 +52,55 @@ export class VerificationService {
   private signName = '';
   private templateCode = '';
 
+  /** 清理定时器 */
+  private cleanupTimer: ReturnType<typeof setInterval> | null = null;
+
   constructor(private readonly configService: ConfigService) {
     this.initSmsClient();
+  }
+
+  /** 模块初始化时启动定期清理 */
+  onModuleInit(): void {
+    this.cleanupTimer = setInterval(
+      () => this.cleanupExpiredEntries(),
+      CLEANUP_INTERVAL_MS,
+    );
+    this.logger.log('验证码过期清理定时器已启动');
+  }
+
+  /** 模块销毁时清除定时器 */
+  onModuleDestroy(): void {
+    if (this.cleanupTimer) {
+      clearInterval(this.cleanupTimer);
+      this.cleanupTimer = null;
+    }
+  }
+
+  /** 清理过期的验证码和频率限制条目 */
+  private cleanupExpiredEntries(): void {
+    const now = Date.now();
+    let codesCleaned = 0;
+    let ratesCleaned = 0;
+
+    for (const [key, entry] of this.codeStore) {
+      if (now > entry.expiresAt) {
+        this.codeStore.delete(key);
+        codesCleaned++;
+      }
+    }
+
+    for (const [key, entry] of this.rateLimitStore) {
+      if (now > entry.nextAllowedAt) {
+        this.rateLimitStore.delete(key);
+        ratesCleaned++;
+      }
+    }
+
+    if (codesCleaned > 0 || ratesCleaned > 0) {
+      this.logger.debug(
+        `清理过期条目：验证码 ${codesCleaned} 条，频率限制 ${ratesCleaned} 条`,
+      );
+    }
   }
 
   /** 初始化阿里云 SMS 客户端 */
@@ -53,8 +113,7 @@ export class VerificationService {
     this.templateCode =
       this.configService.get<string>('sms.templateCode') || '';
     const endpoint =
-      this.configService.get<string>('sms.endpoint') ||
-      'dysmsapi.aliyuncs.com';
+      this.configService.get<string>('sms.endpoint') || 'dysmsapi.aliyuncs.com';
 
     if (accessKeyId && accessKeySecret) {
       const config = new OpenApiConfig({
@@ -69,9 +128,9 @@ export class VerificationService {
     }
   }
 
-  /** 生成 6 位数字验证码 */
+  /** 生成 6 位数字验证码（使用 crypto 安全随机数） */
   private generateCode(): string {
-    return Math.floor(100000 + Math.random() * 900000).toString();
+    return randomInt(100000, 1000000).toString();
   }
 
   /** 生成缓存 key */
@@ -83,7 +142,10 @@ export class VerificationService {
    * 发送短信验证码
    * @returns true 发送成功，抛异常则失败
    */
-  async sendSmsCode(phone: string, type: VerificationCodeType): Promise<boolean> {
+  async sendSmsCode(
+    phone: string,
+    type: VerificationCodeType,
+  ): Promise<boolean> {
     const key = this.getStoreKey(phone, type);
 
     // 频率限制：同一手机号同一类型 60 秒内不能重复发送
@@ -112,10 +174,11 @@ export class VerificationService {
       );
     }
 
-    // 发送成功后缓存验证码，5 分钟过期
+    // 发送成功后缓存验证码，5 分钟过期，重置尝试次数
     this.codeStore.set(key, {
       code,
       expiresAt: Date.now() + 5 * 60 * 1000,
+      attempts: 0,
     });
 
     // 设置频率限制，60 秒
@@ -160,11 +223,7 @@ export class VerificationService {
    * 校验验证码
    * @returns true 校验通过，false 校验失败
    */
-  verifyCode(
-    phone: string,
-    type: VerificationCodeType,
-    code: string,
-  ): boolean {
+  verifyCode(phone: string, type: VerificationCodeType, code: string): boolean {
     const key = this.getStoreKey(phone, type);
     const entry = this.codeStore.get(key);
 
@@ -178,8 +237,16 @@ export class VerificationService {
       return false;
     }
 
-    // 验证码不匹配
+    // 尝试次数超限，删除验证码并拒绝
+    if (entry.attempts >= MAX_VERIFY_ATTEMPTS) {
+      this.codeStore.delete(key);
+      this.logger.warn(`验证码尝试次数超限: ${phone}, 类型: ${type}`);
+      return false;
+    }
+
+    // 验证码不匹配，递增尝试次数
     if (entry.code !== code) {
+      entry.attempts++;
       return false;
     }
 

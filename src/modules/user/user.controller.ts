@@ -1,34 +1,34 @@
 import {
   Controller,
   Get,
-  Post,
   Put,
   Delete,
   Body,
   Param,
+  UseGuards,
 } from '@nestjs/common';
-import { ApiTags, ApiOperation, ApiResponse } from '@nestjs/swagger';
+import {
+  ApiTags,
+  ApiOperation,
+  ApiResponse,
+  ApiBearerAuth,
+} from '@nestjs/swagger';
 import { UserService } from './user.service';
-import { CreateUserDto, UpdateUserDto } from './user.dto';
+import { UpdateUserDto } from './user.dto';
 import { ApiResponseDto } from '../../common/dto/api-response.dto';
+import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 
 /**
  * 用户控制器
- * 提供用户 CRUD 接口
+ * 提供用户查询、更新、删除接口（需登录）
+ * 用户创建统一通过 POST /api/auth/register 完成
  */
 @ApiTags('用户')
+@ApiBearerAuth()
+@UseGuards(JwtAuthGuard)
 @Controller('users')
 export class UserController {
   constructor(private readonly userService: UserService) {}
-
-  @ApiOperation({ summary: '创建用户' })
-  @ApiResponse({ status: 201, description: '创建成功' })
-  @ApiResponse({ status: 409, description: '手机号或邮箱已存在' })
-  @Post()
-  async create(@Body() dto: CreateUserDto) {
-    const user = await this.userService.create(dto);
-    return ApiResponseDto.created(user);
-  }
 
   @ApiOperation({ summary: '查询所有用户' })
   @ApiResponse({ status: 200, description: '查询成功' })

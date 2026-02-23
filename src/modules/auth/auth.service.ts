@@ -1,14 +1,10 @@
-import {
-  Injectable,
-  ConflictException,
-  UnauthorizedException,
-  Logger,
-} from '@nestjs/common';
+import { Injectable, UnauthorizedException, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { JwtService } from '@nestjs/jwt';
 import * as bcrypt from 'bcrypt';
 import { UserEntity } from '../user/user.entity';
+import { UserService } from '../user/user.service';
 import { RegisterDto, LoginDto, JwtPayload } from './auth.dto';
 
 /**
@@ -23,31 +19,19 @@ export class AuthService {
     @InjectRepository(UserEntity)
     private readonly userRepo: Repository<UserEntity>,
     private readonly jwtService: JwtService,
+    private readonly userService: UserService,
   ) {}
 
   /** 注册 */
   async register(dto: RegisterDto): Promise<{ token: string }> {
-    // 校验手机号唯一性
-    const exists = await this.userRepo.findOne({
-      where: { phone: dto.phone },
-    });
-    if (exists) {
-      throw new ConflictException('该手机号已注册');
-    }
-
-    const hashed = await bcrypt.hash(dto.password, 10);
-
-    // 未传昵称时自动生成默认值
-    const nickname = dto.nickname ?? `用户${dto.phone.slice(-4)}`;
-
-    const user = this.userRepo.create({
+    // 委托 UserService 创建用户（M-03: 消除重复用户创建逻辑）
+    const user = await this.userService.create({
       phone: dto.phone,
-      password: hashed,
-      nickname,
+      password: dto.password,
+      nickname: dto.nickname,
     });
-    await this.userRepo.save(user);
-    this.logger.log(`用户注册成功: ${user.id}`);
 
+    this.logger.log(`用户注册成功: ${user.id}`);
     return { token: this.signToken(user) };
   }
 
@@ -73,12 +57,10 @@ export class AuthService {
     return { token: this.signToken(user) };
   }
 
-  /** 签发 JWT */
+  /** 签发 JWT（只包含用户 ID，避免易变字段导致信息不一致） */
   private signToken(user: UserEntity): string {
     const payload: JwtPayload = {
       sub: user.id,
-      phone: user.phone,
-      nickname: user.nickname ?? '',
     };
     return this.jwtService.sign(payload);
   }

@@ -1,19 +1,23 @@
 # 用户模块开发计划
 
-> 基于技术依赖链拆分，共 5 个阶段，顺序执行
+> 基于技术依赖链拆分，共 7 个阶段
 
 ## 阶段总览
 
 ```
-阶段1: 用户实体改造 + 短信验证码服务（基础设施）
+阶段1: 用户实体改造 + 短信验证码服务（基础设施）     ✅ Complete
   ↓
-阶段2: 注册 + 协议签署（依赖阶段1）
+阶段1.5: 安全修复（阶段1 代码审查问题）
   ↓
-阶段3: 登录（短信 + 密码）（依赖阶段1）
+阶段2: 注册 + /users/me + 前端类型同步
   ↓
-阶段4: 忘记密码 / 重置（依赖阶段1）
+阶段2.5: 协议模块（独立）
   ↓
-阶段5: 微信授权登录（独立第三方对接）
+阶段3: 登录（短信 + 密码双通道）
+  ↓
+阶段4: 忘记密码 / 重置
+  ↓
+阶段5: 微信授权登录
 ```
 
 ---
@@ -47,7 +51,7 @@
 
 ### 前端
 
-- [ ] 阶段1 前端无页面改动（基础设施阶段）
+- [x] 阶段1 前端无页面改动（基础设施阶段）
 
 ### 验收标准
 
@@ -57,19 +61,89 @@
 
 ---
 
-## 阶段 2：注册 + 协议签署
+## 阶段 1.5：安全修复
+
+**分支:** `feature/user-entity-sms`（不开新分支，Stage 1 收尾）
+**目标:** 修复代码审查发现的安全和架构问题，为后续阶段提供干净的基础
+**依赖:** 阶段1
+**状态:** Not Started
+
+### 严重问题（阻塞后续开发）
+
+- [ ] **S-01** 移除 JWT `'fallback-secret'` 硬编码（`jwt.strategy.ts`、`auth.module.ts`），缺失时抛异常终止启动
+- [ ] **S-02** `UserService.create()` 密码明文入库 — 加 bcrypt hash，或移除 `UserController.create` 统一走 `AuthService.register()`
+- [ ] **S-03** `UserController` 加 `@UseGuards(JwtAuthGuard)` 鉴权守卫
+- [ ] **S-04** `verification.service.ts` 验证码生成改用 `crypto.randomInt()` 替代 `Math.random()`
+- [ ] **S-05** `verifyCode()` 增加最大尝试次数限制（建议 5 次），防止暴力破解
+
+### 重要问题
+
+- [ ] **M-01** 验证码内存 Map 增加定时清理机制（`OnModuleInit` + `setInterval`），防止内存泄漏
+- [ ] **M-02** 重新定义 `UpdateUserDto`，排除 `password` 和 `phone` 字段，敏感字段需独立接口
+- [ ] **M-03** `AuthService` 依赖 `UserService` 创建用户，消除重复的用户创建逻辑
+- [ ] **M-04** 统一手机号校验：提取 `@IsChinaPhone()` 共享装饰器，替换 auth.dto.ts 的自定义正则和 verification.dto.ts 的 `@IsMobilePhone('zh-CN')`
+
+### 其他改进
+
+- [ ] JwtPayload 只保留 `sub`（用户 ID），移除易变的 `phone`、`nickname`
+- [ ] `.env.example` 数据库名 `t2_program` 修正为 `t3_program`
+- [ ] 接口测试：验证所有修复生效
+
+### 验收标准
+
+- 缺少 `JWT_SECRET` 时服务启动失败并报明确错误
+- `PUT /users/:id` 无法修改 `password` 和 `phone`
+- 验证码连续错误 5 次后自动失效
+- 编译无错误
+
+---
+
+## 阶段 2：注册
 
 **分支:** `feature/user-register`
-**目标:** 用户能通过手机号注册并自动签署协议
-**依赖:** 阶段1（用户实体 + 短信服务）
+**目标:** 用户能通过手机号 + 短信验证码 + 密码完成注册
+**依赖:** 阶段1.5
 **状态:** Not Started
 
 ### 后端
 
 - [ ] 改造 `auth.service.ts` 注册逻辑
   - 手机号 + 短信验证码 + 密码注册
-  - 注册成功自动签署 `user-terms` 和 `privacy-policy`
+  - 调用 `VerificationService.verifyCode()` 校验验证码
+  - 调用 `UserService` 创建用户（阶段1.5 M-03 已重构）
   - 签发 JWT 返回
+- [ ] 更新 `auth.dto.ts` — RegisterDto 改为 `{ phone, smsCode, password, nickname? }`
+- [ ] 实现 `GET /api/users/me` — 通过 JWT 获取当前用户信息（JwtAuthGuard 保护）
+- [ ] 接口测试：完整注册流程 + `/users/me` 鉴权验证
+
+### 前端
+
+- [ ] 同步前端类型定义 `src/types/index.ts`（User 从 username/email 改为 phone/nickname/avatar/bio，RegisterPayload 对齐新 DTO）
+- [ ] 注册页面 `src/views/auth/RegisterView.vue`
+  - 手机号输入 + 获取验证码按钮（60秒倒计时）
+  - 验证码输入
+  - 密码输入 + 确认密码
+  - 注册按钮
+- [ ] 注册成功后自动登录跳转
+
+### 验收标准
+
+- 完整注册流程：输入手机号 → 获取验证码 → 填写密码 → 注册成功 → 自动登录
+- `GET /api/users/me` 携带有效 token 返回当前用户信息，无 token 返回 401
+- 手机号重复注册返回 409
+- 前端类型与后端接口完全对齐，编译无错误
+
+---
+
+## 阶段 2.5：协议模块
+
+**分支:** `feature/user-agreement`
+**目标:** 独立的协议签署模块，注册流程可选集成
+**依赖:** 阶段2
+**状态:** Not Started
+
+### 后端
+
 - [ ] 新建协议模块 `src/modules/agreement/`
   - `agreement.entity.ts` — 协议内容（type、title、version、content、effectiveDate）
   - `agreement-sign.entity.ts` — 签署记录（user_id、agreement_type、version、signedAt）
@@ -77,25 +151,19 @@
   - `agreement.controller.ts` — GET 协议内容、POST 签署、GET 签署记录
   - `agreement.dto.ts` — 签署请求参数校验
   - `agreement.module.ts` — 模块注册
-- [ ] 更新 `auth.dto.ts` — RegisterDto 改为 phone + smsCode + password + nickname?
-- [ ] 接口测试：完整注册流程 + 协议签署验证
+- [ ] 注册流程集成：注册成功后自动签署 `user-terms` 和 `privacy-policy`
+- [ ] 接口测试：协议 CRUD + 签署记录
 
 ### 前端
 
-- [ ] 注册页面 `src/views/auth/RegisterView.vue`
-  - 手机号输入 + 获取验证码按钮（60秒倒计时）
-  - 验证码输入
-  - 密码输入 + 确认密码
-  - 协议勾选（用户条款 + 隐私政策，点击可查看全文）
-  - 注册按钮
-- [ ] 协议详情页/弹窗组件
-- [ ] 注册成功后自动登录跳转
+- [ ] 注册页新增协议勾选（用户条款 + 隐私政策，点击可查看全文）
+- [ ] 协议详情弹窗组件
 
 ### 验收标准
 
-- 完整注册流程：输入手机号 → 获取验证码 → 填写密码 → 勾选协议 → 注册成功 → 自动登录
 - 协议签署记录正确写入数据库
-- 手机号重复注册返回 409
+- 注册成功后自动签署默认协议
+- 协议内容可通过 API 查询
 
 ---
 
@@ -103,14 +171,13 @@
 
 **分支:** `feature/user-login`
 **目标:** 用户能通过短信验证码或密码登录
-**依赖:** 阶段1（短信服务）
+**依赖:** 阶段2
 **状态:** Not Started
 
 ### 后端
 
 - [ ] 新增 `POST /api/auth/login/sms` — 短信验证码登录
-- [ ] 改造 `POST /api/auth/login/password` — 手机号 + 密码登录（现有是邮箱）
-- [ ] 实现 `GET /api/users/me` — 获取当前用户信息
+- [ ] 改造 `POST /api/auth/login/password` — 手机号 + 密码登录
 - [ ] 实现 `GET /api/users/:id/profile` — 获取用户公开信息
 - [ ] 接口测试：两种登录方式 + 鉴权守卫
 
@@ -138,7 +205,7 @@
 
 **分支:** `feature/user-password-reset`
 **目标:** 用户能通过手机号或邮箱重置密码
-**依赖:** 阶段1（短信服务）
+**依赖:** 阶段3
 **状态:** Not Started
 
 ### 后端
@@ -171,7 +238,7 @@
 
 **分支:** `feature/user-wechat-auth`
 **目标:** 用户能通过微信扫码/点击授权登录
-**依赖:** 阶段1（用户实体 + JWT 基础设施）、阶段3（登录流程）
+**依赖:** 阶段3
 **状态:** Not Started
 
 ### 后端

@@ -4,11 +4,9 @@ import { ApiProperty } from '@nestjs/swagger';
 /** 中国大陆手机号正则 */
 const PHONE_REGEX = /^1[3-9]\d{9}$/;
 
-/** JWT payload 结构 */
+/** JWT payload 结构（只保留用户 ID，避免易变字段导致 token 过期前信息不一致） */
 export interface JwtPayload {
   sub: string;
-  phone: string;
-  nickname: string;
 }
 
 /** 注册请求体 */

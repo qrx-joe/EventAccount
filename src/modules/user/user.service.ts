@@ -6,6 +6,7 @@ import {
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
+import * as bcrypt from 'bcrypt';
 import { UserEntity } from './user.entity';
 import { CreateUserDto, UpdateUserDto } from './user.dto';
 
@@ -45,9 +46,13 @@ export class UserService {
     // 未传昵称时自动生成默认值
     const nickname = dto.nickname ?? `用户${dto.phone.slice(-4)}`;
 
+    // 密码哈希
+    const hashed = await bcrypt.hash(dto.password, 10);
+
     const user = this.userRepo.create({
       ...dto,
       nickname,
+      password: hashed,
     });
     const saved = await this.userRepo.save(user);
     this.logger.log(`用户创建成功: ${saved.id}`);
