@@ -52,7 +52,7 @@ if [ -n "$ENV_FILE_CONTENT" ] || [ -n "$CI" ]; then
 # 由CI/CD自动生成的基本环境变量文件 - $(date)
 # 应用配置
 NODE_ENV=$ENV_TYPE
-PORT=8128
+PORT=8138
 EOF
   fi
 

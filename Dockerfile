@@ -37,7 +37,7 @@ COPY --from=builder --chown=nestjs:nodejs /app/package*.json ./
 USER nestjs
 
 # 暴露端口
-EXPOSE 8128
+EXPOSE 8138
 
 # 启动应用
 CMD ["node", "dist/main"]

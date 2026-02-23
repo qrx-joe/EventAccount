@@ -8,7 +8,7 @@ stages:
 variables:
   DOCKER_DRIVER: overlay2
   NODE_VERSION: "20"
-  APP_NAME: "2026-1-stage3-t2-program-backend"
+  APP_NAME: "2026-1-stage3-t3-program-backend"
   GIT_STRATEGY: fetch
   GIT_SSL_NO_VERIFY: "true"
   DOCKER_PULL_POLICY: if-not-present
@@ -147,8 +147,8 @@ deploy_dev:
   variables:
     ENV_TYPE: "development"
     ENV_FILE_CONTENT: $DEV_ENV_FILE
-    DEPLOY_DIR: "/www/wwwroot/2026-1-stage3-t2-program-backend"
-    APP_PORT: "3128"
+    DEPLOY_DIR: "/www/wwwroot/2026-1-stage3-t3-program-backend"
+    APP_PORT: "3138"
   cache: {}
   before_script:
     - apk add --no-cache sshpass bash openssl rsync openssh-client
@@ -167,7 +167,7 @@ deploy_dev:
     - sshpass -p "$DEV_SSH_PASSWORD" ssh root@$TEST_SERVER_HOST "export REGISTRY_URL='$CI_REGISTRY' && export REGISTRY_USERNAME='$CI_REGISTRY_USER' && export REGISTRY_PASSWORD='$CI_REGISTRY_PASSWORD' && export DOCKER_IMAGE='$CI_REGISTRY_IMAGE:latest' && export APP_PORT='$APP_PORT' && cd $DEPLOY_DIR && chmod +x ci/deploy.sh && bash ci/deploy.sh $ENV_TYPE gitlab"
   environment:
     name: development
-    url: "https://dev.back.t2.2026-1-stage3.tutorial.clouddreamai.com"
+    url: "https://dev.back.t3.2026-1-stage3.tutorial.clouddreamai.com"
   only:
     - develop
 
@@ -180,8 +180,8 @@ deploy_prod:
   variables:
     ENV_TYPE: "production"
     ENV_FILE_CONTENT: $PROD_ENV_FILE
-    DEPLOY_DIR: "/www/wwwroot/2026-1-stage3-t2-program-backend"
-    APP_PORT: "8128"
+    DEPLOY_DIR: "/www/wwwroot/2026-1-stage3-t3-program-backend"
+    APP_PORT: "8138"
   cache: {}
   before_script:
     - apk add --no-cache sshpass bash openssl rsync openssh-client
@@ -200,7 +200,7 @@ deploy_prod:
     - sshpass -p "$PROD_SSH_PASSWORD" ssh root@$PROD_SERVER_HOST "export REGISTRY_URL='$CI_REGISTRY' && export REGISTRY_USERNAME='$CI_REGISTRY_USER' && export REGISTRY_PASSWORD='$CI_REGISTRY_PASSWORD' && export DOCKER_IMAGE='$CI_REGISTRY_IMAGE:latest' && export APP_PORT='$APP_PORT' && cd $DEPLOY_DIR && chmod +x ci/deploy.sh && bash ci/deploy.sh $ENV_TYPE gitlab"
   environment:
     name: production
-    url: "https://back.t2.2026-1-stage3.tutorial.clouddreamai.com"
+    url: "https://back.t3.2026-1-stage3.tutorial.clouddreamai.com"
   only:
     - main
   when: manual
@@ -212,8 +212,8 @@ rollback:
     name: alpine:latest
     pull_policy: if-not-present
   variables:
-    DEPLOY_DIR: "/www/wwwroot/2026-1-stage3-t2-program-backend"
-    APP_PORT: "8128"
+    DEPLOY_DIR: "/www/wwwroot/2026-1-stage3-t3-program-backend"
+    APP_PORT: "8138"
   cache: {}
   before_script:
     - apk add --no-cache sshpass bash openssl
@@ -228,7 +228,7 @@ rollback:
     - sshpass -p "$PROD_SSH_PASSWORD" ssh root@$PROD_SERVER_HOST "cd $DEPLOY_DIR && export APP_PORT=$APP_PORT && docker-compose up -d"
   environment:
     name: production
-    url: "https://back.t2.2026-1-stage3.tutorial.clouddreamai.com"
+    url: "https://back.t3.2026-1-stage3.tutorial.clouddreamai.com"
   when: manual
   only:
     - main

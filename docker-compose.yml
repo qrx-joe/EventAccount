@@ -1,7 +1,7 @@
 services:
-  2026-1-stage3-t2-program-backend:
-    image: ${DOCKER_IMAGE:-2026-1-stage3-t2-program-backend:latest}
-    container_name: 2026-1-stage3-t2-program-backend
+  2026-1-stage3-t3-program-backend:
+    image: ${DOCKER_IMAGE:-2026-1-stage3-t3-program-backend:latest}
+    container_name: 2026-1-stage3-t3-program-backend
     ports:
       - "${APP_PORT}:${APP_PORT}"
     env_file:

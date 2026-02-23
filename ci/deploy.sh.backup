@@ -503,9 +503,9 @@ fi
 if [ "$DB_ENABLED" = "true" ]; then
     echo "检查数据库配置..."
     if [ "$ENV_TYPE" = "production" ]; then
-        create_database "localhost" "5432" "202601t2" "t2password" "t2prod"
+        create_database "localhost" "5432" "202601t2" "t2password" "202601t2prod"
     else
-        create_database "localhost" "5432" "202601t2" "t2password" "t2dev"
+        create_database "localhost" "5432" "202601t2" "t2password" "202601t2dev"
     fi
 fi
 

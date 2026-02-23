@@ -6,8 +6,8 @@
 set -e
 
 # 环境变量
-APP_NAME="2026-1-stage3-t2-program-backend"
-DEPLOY_PATH="/www/wwwroot/2026-1-stage3-t2-program-backend"
+APP_NAME="2026-1-stage3-t3-program-backend"
+DEPLOY_PATH="/www/wwwroot/2026-1-stage3-t3-program-backend"
 ENV_TYPE=${1:-development}
 ENABLE_MIGRATION="false"  # 是否启用数据库迁移: true/false
 MIGRATION_COMMAND="npm run migration:run"  # 迁移命令，默认 npm run migration:run
@@ -16,11 +16,11 @@ SSL_EMAIL="tangxue@clouddreamai.com"  # SSL 证书邮箱
 
 # 根据环境设置端口和域名
 if [ "$ENV_TYPE" = "production" ]; then
-  export APP_PORT=8128
-  export DOMAIN="back.t2.2026-1-stage3.tutorial.clouddreamai.com"
+  export APP_PORT=8138
+  export DOMAIN="back.t3.2026-1-stage3.tutorial.clouddreamai.com"
 else
-  export APP_PORT=3128
-  export DOMAIN="dev.back.t2.2026-1-stage3.tutorial.clouddreamai.com"
+  export APP_PORT=3138
+  export DOMAIN="dev.back.t3.2026-1-stage3.tutorial.clouddreamai.com"
 fi
 
 echo "开始部署 $APP_NAME 到 $ENV_TYPE 环境 (端口: $APP_PORT)..."
@@ -503,9 +503,9 @@ fi
 if [ "$DB_ENABLED" = "true" ]; then
     echo "检查数据库配置..."
     if [ "$ENV_TYPE" = "production" ]; then
-        create_database "localhost" "5432" "202601t2" "t2password" "202601t2prod"
+        create_database "localhost" "5432" "202601t3" "t3password" "202601t3prod"
     else
-        create_database "localhost" "5432" "202601t2" "t2password" "202601t2dev"
+        create_database "localhost" "5432" "202601t3" "t3password" "202601t3dev"
     fi
 fi
 
