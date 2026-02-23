@@ -1,30 +1,47 @@
-import { IsEmail, IsString, Length } from 'class-validator';
+import { IsString, Length, Matches, IsOptional } from 'class-validator';
 import { ApiProperty } from '@nestjs/swagger';
+
+/** 中国大陆手机号正则 */
+const PHONE_REGEX = /^1[3-9]\d{9}$/;
+
+/** JWT payload 结构 */
+export interface JwtPayload {
+  sub: string;
+  phone: string;
+  nickname: string;
+}
 
 /** 注册请求体 */
 export class RegisterDto {
-  @ApiProperty({ example: 'john_doe' })
+  @ApiProperty({ description: '手机号（中国大陆）', example: '13800138000' })
   @IsString()
-  @Length(2, 64)
-  username: string;
+  @Matches(PHONE_REGEX, { message: '手机号格式不正确' })
+  phone: string;
 
-  @ApiProperty({ example: 'john@example.com' })
-  @IsEmail()
-  email: string;
-
-  @ApiProperty({ example: 'password123' })
+  @ApiProperty({ description: '密码（6-128位）', example: 'password123' })
   @IsString()
   @Length(6, 128)
   password: string;
+
+  @ApiProperty({
+    description: '昵称（可选，不传则自动生成）',
+    example: '张三',
+    required: false,
+  })
+  @IsOptional()
+  @IsString()
+  @Length(1, 64)
+  nickname?: string;
 }
 
 /** 登录请求体 */
 export class LoginDto {
-  @ApiProperty({ example: 'john@example.com' })
-  @IsEmail()
-  email: string;
+  @ApiProperty({ description: '手机号（中国大陆）', example: '13800138000' })
+  @IsString()
+  @Matches(PHONE_REGEX, { message: '手机号格式不正确' })
+  phone: string;
 
-  @ApiProperty({ example: 'password123' })
+  @ApiProperty({ description: '密码', example: 'password123' })
   @IsString()
   @Length(6, 128)
   password: string;

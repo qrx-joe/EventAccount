@@ -24,14 +24,31 @@ export class UserService {
 
   /** 创建用户 */
   async create(dto: CreateUserDto): Promise<UserEntity> {
-    const exists = await this.userRepo.findOne({
-      where: [{ username: dto.username }, { email: dto.email }],
+    // 检查手机号唯一性
+    const existsByPhone = await this.userRepo.findOne({
+      where: { phone: dto.phone },
     });
-    if (exists) {
-      throw new ConflictException('用户名或邮箱已存在');
+    if (existsByPhone) {
+      throw new ConflictException('该手机号已注册');
     }
 
-    const user = this.userRepo.create(dto);
+    // 检查邮箱唯一性（如果提供了邮箱）
+    if (dto.email) {
+      const existsByEmail = await this.userRepo.findOne({
+        where: { email: dto.email },
+      });
+      if (existsByEmail) {
+        throw new ConflictException('该邮箱已被使用');
+      }
+    }
+
+    // 未传昵称时自动生成默认值
+    const nickname = dto.nickname ?? `用户${dto.phone.slice(-4)}`;
+
+    const user = this.userRepo.create({
+      ...dto,
+      nickname,
+    });
     const saved = await this.userRepo.save(user);
     this.logger.log(`用户创建成功: ${saved.id}`);
     return saved;
@@ -49,6 +66,11 @@ export class UserService {
       throw new NotFoundException(`用户 ${id} 不存在`);
     }
     return user;
+  }
+
+  /** 根据手机号查询用户 */
+  async findByPhone(phone: string): Promise<UserEntity | null> {
+    return this.userRepo.findOne({ where: { phone } });
   }
 
   /** 更新用户 */
