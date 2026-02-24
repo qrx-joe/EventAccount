@@ -17,9 +17,9 @@
   ↓
 阶段3: 登录（短信 + 密码双通道）     ✅ Complete
   ↓
-阶段4: 忘记密码 / 重置      ← 当前
+阶段4: 忘记密码 / 重置（手机号通道）     ✅ Complete
   ↓
-阶段5: 微信授权登录
+阶段5: 微信授权登录      ← 下一阶段
 
 完成后合并到 develop，squash 或保留 commit 均可
 ```
@@ -199,32 +199,57 @@
 
 ## 阶段 4：忘记密码 / 重置
 
-**commit:** `feat: 忘记密码 / 密码重置（手机号 + 邮箱）`
-**状态:** Not Started
+**commit:** `feat: 忘记密码 / 密码重置（手机号验证码通道）`
+**状态:** Complete
 
 ### 后端
 
-- [ ] 实现 `POST /api/auth/password/verify` — 验证身份（手机号验证码 / 邮箱验证码）
-  - 校验通过签发临时 resetToken（10分钟有效）
-- [ ] 实现 `POST /api/auth/password/reset` — 重置密码
-  - 校验 resetToken → 更新密码 → 废弃 resetToken
-- [ ] 扩展 verification 模块：新增 `email-sender.service.ts`（邮件发送）、新增 `POST /api/auth/email/send` 端点、扩展 `verification.dto.ts` 支持 email 参数
-- [ ] 接口测试：手机号重置 + 邮箱重置完整流程
+- [x] 新增 DTO 类型：`ResetTokenPayload`、`ForgotPasswordVerifyDto`、`ResetPasswordDto`（`auth.dto.ts`）
+- [x] `UserService` 新增 `findByIdWithPassword()`、`updatePassword()` 方法
+- [x] `AuthService` 新增 `verifyResetCode()`、`resetPassword()` 方法
+  - resetToken 使用 JWT 签发，10 分钟有效，payload 含 `purpose: 'password-reset'`
+  - 手动 `jwtService.verify()` + purpose 校验，不走 JwtAuthGuard
+  - 新旧密码 bcrypt 比对，相同则拒绝
+- [x] `AuthController` 新增 `POST /api/auth/password/verify-reset`、`POST /api/auth/password/reset`（@Throttle 60s/5次）
+- [x] 代码审查修复：
+  - `jwt.strategy.ts` 增加 purpose 校验，拒绝 resetToken 冒充登录 token
+  - `verifyResetCode()` 统一错误信息，避免泄露手机号注册状态
+- [x] 接口测试（11 个用例全部通过）：
+  1. ✅ 发送重置验证码 → 200
+  2. ✅ 验证重置验证码（正确）→ 200 + resetToken
+  3. ✅ 验证重置验证码（错误码）→ 400
+  4. ✅ 验证重置验证码（未注册手机）→ 400
+  5. ✅ 重置密码（正确 token + 新密码）→ 200
+  6. ✅ 用新密码登录 → 200
+  7. ✅ 用旧密码登录 → 401
+  8. ✅ 重置密码（新旧密码相同）→ 400
+  9. ✅ 重置密码（两次密码不一致）→ 400
+  10. ✅ 重置密码（伪造/过期 token）→ 401
+  11. ✅ 用登录 token 冒充 resetToken → 401
 
 ### 前端
 
-- [ ] 忘记密码页面 `src/views/auth/ForgotPasswordView.vue`
-  - Step 1：选择验证方式（手机号 / 邮箱）
-  - Step 2：输入手机号或邮箱 + 获取验证码 + 输入验证码
-  - Step 3：设置新密码 + 确认密码
-  - 重置成功提示 → 跳转登录页
+- [x] 新增类型：`VerifyResetCodePayload`、`VerifyResetCodeResult`、`ResetPasswordPayload`（`types/index.ts`）
+- [x] 新增 API 函数：`verifyResetCode()`、`resetPassword()`（`lib/auth.ts`）
+- [x] 新增路由 `/forgot-password`（meta: requiresGuest）
+- [x] `PasswordLoginForm.vue` 禁用态 span 改为 `<RouterLink to="/forgot-password">`
+- [x] 新建 `ForgotPasswordView.vue` — 两步骤单页面（步骤指示器 + v-if 切换）
+  - `ForgotStep1Form.vue` — 手机号 + 短信验证码验证身份
+  - `ForgotStep2Form.vue` — 设置新密码（含确认密码 + refine 校验）
+- [x] 代码审查修复：
+  - 拆分为 3 个独立组件，解决 vee-validate useForm provide/inject 冲突
+  - 移除 PasswordLoginForm.vue 中冗余的 RouterLink import
 
 ### 验收标准
 
-- 手机号通道：发送验证码 → 验证 → 重置密码 → 登录成功
-- 邮箱通道：发送验证码 → 验证 → 重置密码 → 登录成功
-- resetToken 过期（10分钟后）返回 400
-- 新密码与旧密码相同返回 400
+- ✅ 手机号通道：发送验证码 → 验证 → 重置密码 → 用新密码登录成功
+- ✅ 旧密码登录失败（401）
+- ✅ resetToken 伪造/过期返回 401
+- ✅ 新密码与旧密码相同返回 400
+- ✅ 登录 token 无法冒充 resetToken（purpose 校验）
+- ✅ 未注册手机号不泄露注册状态（统一错误信息）
+
+> 注：邮箱通道本阶段不做，后续按需补充
 
 ---
 

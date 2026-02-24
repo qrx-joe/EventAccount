@@ -60,3 +60,39 @@ export class SmsLoginDto {
   @Matches(/^\d{6}$/, { message: '验证码为6位数字' })
   smsCode: string;
 }
+
+/** 重置密码 token payload（手动验证，不走 JwtAuthGuard） */
+export interface ResetTokenPayload {
+  sub: string;
+  purpose: 'password-reset';
+}
+
+/** 忘记密码 - 验证身份请求体 */
+export class ForgotPasswordVerifyDto {
+  @ApiProperty({ description: '手机号（中国大陆）', example: '13800138000' })
+  @IsString()
+  @Matches(PHONE_REGEX, { message: '手机号格式不正确' })
+  phone: string;
+
+  @ApiProperty({ description: '短信验证码（6位数字）', example: '123456' })
+  @IsString()
+  @Matches(/^\d{6}$/, { message: '验证码为6位数字' })
+  smsCode: string;
+}
+
+/** 重置密码请求体 */
+export class ResetPasswordDto {
+  @ApiProperty({ description: '重置密码令牌' })
+  @IsString()
+  resetToken: string;
+
+  @ApiProperty({ description: '新密码（6-128位）', example: 'newPassword123' })
+  @IsString()
+  @Length(6, 128)
+  newPassword: string;
+
+  @ApiProperty({ description: '确认新密码', example: 'newPassword123' })
+  @IsString()
+  @Length(6, 128)
+  confirmPassword: string;
+}

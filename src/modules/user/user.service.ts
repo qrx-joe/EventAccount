@@ -119,4 +119,20 @@ export class UserService {
       .where('u.phone = :phone', { phone })
       .getOne();
   }
+
+  /** 根据 ID 查询用户（含密码字段，仅供 AuthService 重置密码校验使用） */
+  async findByIdWithPassword(id: string): Promise<UserEntity | null> {
+    return this.userRepo
+      .createQueryBuilder('u')
+      .addSelect('u.password')
+      .where('u.id = :id', { id })
+      .getOne();
+  }
+
+  /** 更新用户密码 */
+  async updatePassword(userId: string, newPassword: string): Promise<void> {
+    const hashed = await bcrypt.hash(newPassword, BCRYPT_SALT_ROUNDS);
+    await this.userRepo.update(userId, { password: hashed });
+    this.logger.log(`用户密码更新成功: ${userId}`);
+  }
 }

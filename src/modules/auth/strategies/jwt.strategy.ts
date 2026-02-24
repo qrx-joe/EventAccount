@@ -22,8 +22,11 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
     });
   }
 
-  /** 验证通过后将 payload 挂载到 request.user */
-  validate(payload: JwtPayload): JwtPayload {
+  /** 验证通过后将 payload 挂载到 request.user（拒绝非登录用途的 token） */
+  validate(payload: JwtPayload & { purpose?: string }): JwtPayload {
+    if (payload.purpose) {
+      throw new Error('无效的认证令牌');
+    }
     return { sub: payload.sub };
   }
 }
