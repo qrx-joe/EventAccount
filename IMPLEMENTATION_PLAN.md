@@ -20,6 +20,8 @@
 阶段4: 忘记密码 / 重置（手机号通道）     ✅ Complete
   ↓
 阶段5: 微信授权登录      ✅ Complete
+  ↓
+阶段6: 全项目代码审查修复     ✅ Complete
 
 完成后合并到 develop，squash 或保留 commit 均可
 ```
@@ -316,3 +318,67 @@
 - ✅ 微信用户（无密码）尝试密码登录 → 401 "该账号未设置密码"
 - ✅ 前后端编译 + lint 通过
 - ✅ 10 个 E2E 测试全部通过
+
+---
+
+## 阶段 6：全项目代码审查修复
+
+**commit（后端）:** `fix(安全加固): 全项目代码审查修复`
+**commit（前端）:** `fix(代码审查): 全项目前端代码审查修复`
+**状态:** Complete
+
+> 阶段 1-5 全部完成后，对整个项目进行前后端全面代码审查，修复所有立即修复（Critical）和短期修复（High）问题。
+
+### 后端（10 项修复，13 文件变更）
+
+#### 严重问题（Critical）
+
+- [x] **C-01** CORS 全开放 → 限制为 `ALLOWED_ORIGINS` 环境变量配置的域名（`main.ts`）
+- [x] **C-02** 缺少 HTTP 安全头 → 安装并启用 `helmet` 中间件（`main.ts`、`package.json`）
+- [x] **C-04** AllExceptionsFilter 只捕获 HttpException → `@Catch()` 捕获所有异常，非 HTTP 异常返回 500 + 通用错误信息（`http-exception.filter.ts`）
+- [x] **C-05** 短信发送接口无独立限流 → `@Throttle({ default: { ttl: 60000, limit: 5 } })` + `@UseGuards(ThrottlerGuard)`（`verification.controller.ts`）
+
+#### 重要问题（High）
+
+- [x] **H-03** `UserService.update()` Object.assign 可能用 undefined 覆盖已有值 → 改为逐字段 `!== undefined` 检查（`user.service.ts`）
+- [x] **H-05** `tsconfig.json` 未开启 strict 模式 → 添加 `"strict": true`，保留 `"strictPropertyInitialization": false`（TypeORM 实体需要）
+- [x] **H-06** ESLint `no-explicit-any` 关闭 → 改为 `warn` 级别（`eslint.config.mjs`）
+- [x] **H-07** 生产环境 ValidationPipe 暴露详细错误 → `disableErrorMessages: process.env.NODE_ENV === 'production'`（`main.ts`）
+
+#### 中等问题（Medium）
+
+- [x] **M-01** 缺少环境变量校验 → 添加 Joi validationSchema 校验必要环境变量（`app.module.ts`、`package.json`）
+
+#### 低优先级（Low）
+
+- [x] **L-01** envFilePath 加载顺序问题 → `.env.${NODE_ENV}` 优先于 `.env`（`app.module.ts`）
+- [x] **L-02/L-06** 数据库默认名 `t2_program` → `t3_program` + Swagger 标题同步（`database.config.ts`、`main.ts`）
+- [x] **L-03** E2E 测试 `res.body` 类型不安全 → 定义 `ApiBody<T>` 泛型接口 + 各接口数据类型（`wechat-oauth.e2e-spec.ts`）
+
+### 前端（6 项修复，14 文件变更，2 新文件，2 删除文件）
+
+#### 严重问题（P0）
+
+- [x] **#1** UserListView 编辑/删除按钮无权限控制 → 添加 `v-if="auth.user?.id === user.id"` 条件渲染
+- [x] **#3** HTTP 拦截器 401 时使用 `window.location.href` 导致 SPA 状态丢失 → 改为 `router.push({ name: 'login' })`
+
+#### 重要问题（P1）
+
+- [x] **#4/#5** `index.html` lang="en" → "zh-CN"，title "frontend" → "T3 Program"
+- [x] **#6** 短信倒计时逻辑在 4 个组件中重复 → 提取为 `composables/useSmsCountdown.ts` 组合式函数
+- [x] **#7** 登录成功处理逻辑在 4 个组件中重复 → 提取为 `composables/useAuthLogin.ts` 组合式函数
+- [x] **#8** 脚手架残留文件 `HelloWorld.vue` 和 `vue.svg` → 删除
+- [x] **#9** 缺少 404 兜底路由 → 添加 `/:pathMatch(.*)*` 重定向到 `/login`
+
+### 新增依赖
+
+- 后端：`helmet`（HTTP 安全头）、`joi`（环境变量校验）
+
+### 验收标准
+
+- ✅ 后端 `npm run build` 编译通过
+- ✅ 后端 `npm run lint` 0 errors 0 warnings
+- ✅ 后端 E2E 测试 10/10 全部通过
+- ✅ 前端 `npm run build` 编译通过
+- ✅ 前端 `npm run lint` 0 errors
+- ✅ MR !7 已创建并推送
