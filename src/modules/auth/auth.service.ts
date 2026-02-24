@@ -10,6 +10,7 @@ import { UserEntity } from '../user/user.entity';
 import { UserService } from '../user/user.service';
 import { VerificationService } from '../verification/verification.service';
 import { VerificationCodeType } from '../verification/verification.dto';
+import { AgreementService } from '../agreement/agreement.service';
 import { RegisterDto, LoginDto, JwtPayload } from './auth.dto';
 
 /**
@@ -25,6 +26,7 @@ export class AuthService {
     private readonly jwtService: JwtService,
     private readonly userService: UserService,
     private readonly verificationService: VerificationService,
+    private readonly agreementService: AgreementService,
   ) {}
 
   /** 注册：校验验证码 → 创建用户 → 签发 token */
@@ -45,6 +47,9 @@ export class AuthService {
       password: dto.password,
       nickname: dto.nickname,
     });
+
+    // 自动签署注册协议（用户条款 + 隐私政策）
+    await this.agreementService.autoSignOnRegister(user.id);
 
     this.logger.log(`用户注册成功: ${user.id}`);
     return { token: this.signToken(user) };

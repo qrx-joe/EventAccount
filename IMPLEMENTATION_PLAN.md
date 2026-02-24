@@ -11,9 +11,9 @@
   ↓
 阶段1.5: 安全修复（阶段1 代码审查问题）     ✅ Complete
   ↓
-阶段2: 注册 + /users/me + 前端类型同步      ← 当前
+阶段2: 注册 + /users/me + 前端类型同步     ✅ Complete
   ↓
-阶段2.5: 协议模块
+阶段2.5: 协议模块      ← 当前
   ↓
 阶段3: 登录（短信 + 密码双通道）
   ↓
@@ -96,28 +96,28 @@
 ## 阶段 2：注册
 
 **commit:** `feat: 注册（手机号+验证码+密码）+ /users/me + 前端类型同步`
-**状态:** Not Started
+**状态:** Complete
 
 ### 后端
 
-- [ ] 改造 `auth.service.ts` 注册逻辑
+- [x] 改造 `auth.service.ts` 注册逻辑
   - 手机号 + 短信验证码 + 密码注册
   - 调用 `VerificationService.verifyCode()` 校验验证码
   - 调用 `UserService` 创建用户（阶段1.5 M-03 已重构）
   - 签发 JWT 返回
-- [ ] 更新 `auth.dto.ts` — RegisterDto 改为 `{ phone, smsCode, password, nickname? }`
-- [ ] 实现 `GET /api/users/me` — 通过 JWT 获取当前用户信息（JwtAuthGuard 保护）
-- [ ] 接口测试：完整注册流程 + `/users/me` 鉴权验证
+- [x] 更新 `auth.dto.ts` — RegisterDto 改为 `{ phone, smsCode, password, nickname? }`
+- [x] 实现 `GET /api/users/me` — 通过 JWT 获取当前用户信息（JwtAuthGuard 保护）
+- [x] 接口测试：完整注册流程 + `/users/me` 鉴权验证
 
 ### 前端
 
-- [ ] 同步前端类型定义 `src/types/index.ts`（User 从 username/email 改为 phone/nickname/avatar/bio，RegisterPayload 对齐新 DTO）
-- [ ] 注册页面 `src/views/auth/RegisterView.vue`
+- [x] 同步前端类型定义 `src/types/index.ts`（User 从 username/email 改为 phone/nickname/avatar/bio，RegisterPayload 对齐新 DTO）
+- [x] 注册页面 `src/views/auth/RegisterView.vue`
   - 手机号输入 + 获取验证码按钮（60秒倒计时）
   - 验证码输入
   - 密码输入 + 确认密码
   - 注册按钮
-- [ ] 注册成功后自动登录跳转
+- [x] 注册成功后自动登录跳转
 
 ### 验收标准
 

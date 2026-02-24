@@ -7,6 +7,7 @@ import smsConfig from './config/sms.config';
 import { UserModule } from './modules/user/user.module';
 import { AuthModule } from './modules/auth/auth.module';
 import { VerificationModule } from './modules/verification/verification.module';
+import { AgreementModule } from './modules/agreement/agreement.module';
 @Module({
   imports: [
     // 全局配置模块，加载 .env 文件
@@ -43,6 +44,7 @@ import { VerificationModule } from './modules/verification/verification.module';
     UserModule,
     AuthModule,
     VerificationModule,
+    AgreementModule,
   ],
 })
 export class AppModule {}
