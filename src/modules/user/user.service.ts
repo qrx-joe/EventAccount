@@ -10,6 +10,9 @@ import * as bcrypt from 'bcrypt';
 import { UserEntity } from './user.entity';
 import { CreateUserDto, UpdateUserDto } from './user.dto';
 
+/** bcrypt 哈希轮数（12 轮 ≈ 300ms，安全性与性能的平衡点） */
+const BCRYPT_SALT_ROUNDS = 12;
+
 /**
  * 用户服务
  * 负责用户的增删改查业务逻辑
@@ -47,7 +50,7 @@ export class UserService {
     const nickname = dto.nickname ?? `用户${dto.phone.slice(-4)}`;
 
     // 密码哈希
-    const hashed = await bcrypt.hash(dto.password, 10);
+    const hashed = await bcrypt.hash(dto.password, BCRYPT_SALT_ROUNDS);
 
     const user = this.userRepo.create({
       ...dto,
@@ -78,10 +81,26 @@ export class UserService {
     return this.userRepo.findOne({ where: { phone } });
   }
 
+  /** 获取用户公开信息（不含敏感字段） */
+  async getPublicProfile(
+    id: string,
+  ): Promise<Pick<UserEntity, 'id' | 'nickname' | 'avatar' | 'bio'>> {
+    const user = await this.userRepo.findOne({
+      where: { id },
+      select: ['id', 'nickname', 'avatar', 'bio'],
+    });
+    if (!user) {
+      throw new NotFoundException(`用户 ${id} 不存在`);
+    }
+    return user;
+  }
+
   /** 更新用户 */
   async update(id: string, dto: UpdateUserDto): Promise<UserEntity> {
     const user = await this.findOne(id);
-    Object.assign(user, dto);
+    // 显式提取允许更新的字段，避免 Object.assign 覆盖受保护字段
+    const { nickname, email, avatar, bio } = dto;
+    Object.assign(user, { nickname, email, avatar, bio });
     return this.userRepo.save(user);
   }
 

@@ -35,8 +35,8 @@ export class RegisterDto {
   nickname?: string;
 }
 
-/** 登录请求体 */
-export class LoginDto {
+/** 密码登录请求体 */
+export class LoginPasswordDto {
   @ApiProperty({ description: '手机号（中国大陆）', example: '13800138000' })
   @IsString()
   @Matches(PHONE_REGEX, { message: '手机号格式不正确' })
@@ -46,4 +46,17 @@ export class LoginDto {
   @IsString()
   @Length(6, 128)
   password: string;
+}
+
+/** 短信验证码登录请求体 */
+export class SmsLoginDto {
+  @ApiProperty({ description: '手机号（中国大陆）', example: '13800138000' })
+  @IsString()
+  @Matches(PHONE_REGEX, { message: '手机号格式不正确' })
+  phone: string;
+
+  @ApiProperty({ description: '短信验证码（6位数字）', example: '123456' })
+  @IsString()
+  @Matches(/^\d{6}$/, { message: '验证码为6位数字' })
+  smsCode: string;
 }

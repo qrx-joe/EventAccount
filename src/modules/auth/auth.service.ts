@@ -11,7 +11,12 @@ import { UserService } from '../user/user.service';
 import { VerificationService } from '../verification/verification.service';
 import { VerificationCodeType } from '../verification/verification.dto';
 import { AgreementService } from '../agreement/agreement.service';
-import { RegisterDto, LoginDto, JwtPayload } from './auth.dto';
+import {
+  RegisterDto,
+  LoginPasswordDto,
+  SmsLoginDto,
+  JwtPayload,
+} from './auth.dto';
 
 /**
  * 认证服务
@@ -55,8 +60,8 @@ export class AuthService {
     return { token: this.signToken(user) };
   }
 
-  /** 登录：通过 UserService 查询用户（含密码），校验密码后签发 token */
-  async login(dto: LoginDto): Promise<{ token: string }> {
+  /** 密码登录：通过 UserService 查询用户（含密码），校验密码后签发 token */
+  async loginByPassword(dto: LoginPasswordDto): Promise<{ token: string }> {
     const user = await this.userService.findByPhoneWithPassword(dto.phone);
 
     if (!user) {
@@ -68,7 +73,28 @@ export class AuthService {
       throw new UnauthorizedException('手机号或密码错误');
     }
 
-    this.logger.log(`用户登录成功: ${user.id}`);
+    this.logger.log(`用户密码登录成功: ${user.id}`);
+    return { token: this.signToken(user) };
+  }
+
+  /** 短信验证码登录：校验验证码 → 查找用户 → 签发 token */
+  async loginBySms(dto: SmsLoginDto): Promise<{ token: string }> {
+    const valid = this.verificationService.verifyCode(
+      dto.phone,
+      VerificationCodeType.LOGIN,
+      dto.smsCode,
+    );
+    if (!valid) {
+      throw new BadRequestException('验证码无效或已过期');
+    }
+
+    const user = await this.userService.findByPhone(dto.phone);
+    if (!user) {
+      // 统一错误信息，避免泄露手机号注册状态
+      throw new UnauthorizedException('验证码无效或登录失败');
+    }
+
+    this.logger.log(`用户短信登录成功: ${user.id}`);
     return { token: this.signToken(user) };
   }
 

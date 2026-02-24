@@ -13,11 +13,11 @@
   ↓
 阶段2: 注册 + /users/me + 前端类型同步     ✅ Complete
   ↓
-阶段2.5: 协议模块      ← 当前
+阶段2.5: 协议模块     ✅ Complete
   ↓
-阶段3: 登录（短信 + 密码双通道）
+阶段3: 登录（短信 + 密码双通道）     ✅ Complete
   ↓
-阶段4: 忘记密码 / 重置
+阶段4: 忘记密码 / 重置      ← 当前
   ↓
 阶段5: 微信授权登录
 
@@ -131,26 +131,26 @@
 ## 阶段 2.5：协议模块
 
 **commit:** `feat: 协议模块（注册协议签署）`
-**状态:** Not Started
+**状态:** Complete
 
 ### 后端
 
-- [ ] 新建协议模块 `src/modules/agreement/`
+- [x] 新建协议模块 `src/modules/agreement/`
   - `agreement.entity.ts` — 协议内容（type、title、version、content、effectiveDate）
   - `agreement-sign.entity.ts` — 签署记录（user_id、agreement_type、version、signedAt）
   - `agreement.service.ts` — 协议查询、签署、记录查询
   - `agreement.controller.ts` — GET 协议内容、POST 签署、GET 签署记录
   - `agreement.dto.ts` — 签署请求参数校验
   - `agreement.module.ts` — 模块注册
-- [ ] 注册流程集成：注册成功后自动签署 `user-terms` 和 `privacy-policy`
-- [ ] 接口测试：协议 CRUD + 签署记录
+- [x] 注册流程集成：注册成功后自动签署 `user-terms` 和 `privacy-policy`
+- [x] 接口测试：协议 CRUD + 签署记录
 
 > 注：报名协议、缴费协议属于活动模块/支付模块，不在本阶段范围
 
 ### 前端
 
-- [ ] 注册页新增协议勾选（用户条款 + 隐私政策，点击可查看全文）
-- [ ] 协议详情弹窗组件
+- [x] 注册页新增协议勾选（用户条款 + 隐私政策，点击可查看全文）
+- [x] 协议详情弹窗组件
 
 ### 验收标准
 
@@ -163,32 +163,37 @@
 ## 阶段 3：登录（短信 + 密码）
 
 **commit:** `feat: 登录（短信验证码 + 密码双通道）`
-**状态:** Not Started
+**状态:** Complete
 
 ### 后端
 
-- [ ] 新增 `POST /api/auth/login/sms` — 短信验证码登录
-- [ ] 改造 `POST /api/auth/login/password` — 手机号 + 密码登录
-- [ ] 实现 `GET /api/users/:id/profile` — 获取用户公开信息
-- [ ] 接口测试：两种登录方式 + 鉴权守卫
+- [x] 新增 `POST /api/auth/login/sms` — 短信验证码登录
+- [x] 改造 `POST /api/auth/login/password` — 手机号 + 密码登录（原 `POST /api/auth/login` 拆分）
+- [x] 实现 `GET /api/users/:id/profile` — 获取用户公开信息（仅返回 id/nickname/avatar/bio）
+- [x] 代码审查修复：timingSafeEqual 验证码比对、bcrypt salt rounds 12、路由顺序优化、Swagger 完善
+- [x] 接口测试：两种登录方式 + 鉴权守卫 + 公开 profile + 错误信息不泄露注册状态
 
 ### 前端
 
-- [ ] 登录页面 `src/views/auth/LoginView.vue` 改造
-  - Tab 切换：短信验证码登录 / 密码登录
-  - 短信验证码登录：手机号 + 验证码
-  - 密码登录：手机号 + 密码
-  - "忘记密码"入口
+- [x] 登录页面 `src/views/auth/LoginView.vue` 改造
+  - Tab 切换：短信验证码登录 / 密码登录（shadcn-vue Tabs 组件）
+  - 短信验证码登录：`SmsLoginForm.vue` 子组件
+  - 密码登录：`PasswordLoginForm.vue` 子组件
+  - "忘记密码"入口（阶段 4 实现，当前禁用态文本）
   - "去注册"入口
-- [ ] Token 存储（localStorage）+ Axios 拦截器自动携带
-- [ ] 路由守卫完善（未登录跳转登录页）
-- [ ] 登录成功后跳转首页
+- [x] Token 存储（localStorage）+ Axios 拦截器自动携带（阶段 2 已完成）
+- [x] 路由守卫完善（阶段 2 已完成）
+- [x] 登录成功后跳转首页
+- [x] 代码审查修复：PHONE_REGEX 提取到 validators.ts、fetchUser 返回值检查、inputmode="numeric"
 
 ### 验收标准
 
-- 两种方式均能正常登录并获取 Token
-- Token 过期/无效返回 401
-- 前端鉴权守卫正常拦截未登录请求
+- ✅ 两种方式均能正常登录并获取 Token
+- ✅ Token 过期/无效返回 401
+- ✅ 前端鉴权守卫正常拦截未登录请求
+- ✅ 密码登录错误不泄露手机号注册状态
+- ✅ 公开 profile 只返回非敏感字段
+- ✅ 验证码一次性使用，用后即失效
 
 ---
 

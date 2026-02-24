@@ -6,7 +6,7 @@ import {
   OnModuleDestroy,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { randomInt } from 'crypto';
+import { randomInt, timingSafeEqual } from 'crypto';
 import Dysmsapi20170525, { SendSmsRequest } from '@alicloud/dysmsapi20170525';
 import { Config as OpenApiConfig } from '@alicloud/openapi-client';
 import { RuntimeOptions } from '@alicloud/tea-util';
@@ -244,8 +244,10 @@ export class VerificationService implements OnModuleInit, OnModuleDestroy {
       return false;
     }
 
-    // 验证码不匹配，递增尝试次数
-    if (entry.code !== code) {
+    // 验证码不匹配，递增尝试次数（使用常量时间比较防止时序攻击）
+    const a = Buffer.from(entry.code);
+    const b = Buffer.from(code);
+    if (a.length !== b.length || !timingSafeEqual(a, b)) {
       entry.attempts++;
       return false;
     }
