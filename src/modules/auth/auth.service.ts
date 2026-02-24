@@ -86,7 +86,9 @@ export class AuthService {
   }
 
   /** 短信验证码登录：校验验证码 → 查找用户（不存在则自动注册） → 签发 token */
-  async loginBySms(dto: SmsLoginDto): Promise<{ token: string; isNewUser: boolean }> {
+  async loginBySms(
+    dto: SmsLoginDto,
+  ): Promise<{ token: string; isNewUser: boolean }> {
     const valid = this.verificationService.verifyCode(
       dto.phone,
       VerificationCodeType.LOGIN,
