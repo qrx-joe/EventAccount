@@ -85,8 +85,8 @@ export class AuthService {
     return { token: this.signToken(user) };
   }
 
-  /** 短信验证码登录：校验验证码 → 查找用户 → 签发 token */
-  async loginBySms(dto: SmsLoginDto): Promise<{ token: string }> {
+  /** 短信验证码登录：校验验证码 → 查找用户（不存在则自动注册） → 签发 token */
+  async loginBySms(dto: SmsLoginDto): Promise<{ token: string; isNewUser: boolean }> {
     const valid = this.verificationService.verifyCode(
       dto.phone,
       VerificationCodeType.LOGIN,
@@ -96,14 +96,19 @@ export class AuthService {
       throw new BadRequestException('验证码无效或已过期');
     }
 
-    const user = await this.userService.findByPhone(dto.phone);
+    let user = await this.userService.findByPhone(dto.phone);
+    let isNewUser = false;
+
+    // 未注册用户自动创建账号（无密码）
     if (!user) {
-      // 统一错误信息，避免泄露手机号注册状态
-      throw new UnauthorizedException('验证码无效或登录失败');
+      user = await this.userService.create({ phone: dto.phone });
+      await this.agreementService.autoSignOnRegister(user.id);
+      isNewUser = true;
+      this.logger.log(`短信登录自动注册新用户: ${user.id}`);
     }
 
     this.logger.log(`用户短信登录成功: ${user.id}`);
-    return { token: this.signToken(user) };
+    return { token: this.signToken(user), isNewUser };
   }
 
   /** 签发 JWT（只包含用户 ID，避免易变字段导致信息不一致） */
