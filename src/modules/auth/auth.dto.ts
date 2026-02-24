@@ -1,8 +1,6 @@
 import { IsString, Length, Matches, IsOptional } from 'class-validator';
 import { ApiProperty } from '@nestjs/swagger';
-
-/** 中国大陆手机号正则 */
-const PHONE_REGEX = /^1[3-9]\d{9}$/;
+import { PHONE_REGEX } from '../../common/constants/phone';
 
 /** JWT payload 结构（只保留用户 ID，避免易变字段导致 token 过期前信息不一致） */
 export interface JwtPayload {
@@ -18,7 +16,7 @@ export class RegisterDto {
 
   @ApiProperty({ description: '短信验证码（6位数字）', example: '123456' })
   @IsString()
-  @Length(6, 6, { message: '验证码为6位数字' })
+  @Matches(/^\d{6}$/, { message: '验证码为6位数字' })
   smsCode: string;
 
   @ApiProperty({ description: '密码（6-128位）', example: 'password123' })

@@ -4,8 +4,6 @@ import {
   BadRequestException,
   Logger,
 } from '@nestjs/common';
-import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
 import { JwtService } from '@nestjs/jwt';
 import * as bcrypt from 'bcrypt';
 import { UserEntity } from '../user/user.entity';
@@ -17,14 +15,13 @@ import { RegisterDto, LoginDto, JwtPayload } from './auth.dto';
 /**
  * 认证服务
  * 负责注册、登录、token 签发
+ * 通过 UserService 访问用户数据，不直接操作 Repository
  */
 @Injectable()
 export class AuthService {
   private readonly logger = new Logger(AuthService.name);
 
   constructor(
-    @InjectRepository(UserEntity)
-    private readonly userRepo: Repository<UserEntity>,
     private readonly jwtService: JwtService,
     private readonly userService: UserService,
     private readonly verificationService: VerificationService,
@@ -53,14 +50,9 @@ export class AuthService {
     return { token: this.signToken(user) };
   }
 
-  /** 登录 */
+  /** 登录：通过 UserService 查询用户（含密码），校验密码后签发 token */
   async login(dto: LoginDto): Promise<{ token: string }> {
-    // password 字段 select: false，需要 addSelect
-    const user = await this.userRepo
-      .createQueryBuilder('u')
-      .addSelect('u.password')
-      .where('u.phone = :phone', { phone: dto.phone })
-      .getOne();
+    const user = await this.userService.findByPhoneWithPassword(dto.phone);
 
     if (!user) {
       throw new UnauthorizedException('手机号或密码错误');

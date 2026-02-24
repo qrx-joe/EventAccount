@@ -1,9 +1,7 @@
 import { Module } from '@nestjs/common';
-import { TypeOrmModule } from '@nestjs/typeorm';
 import { JwtModule } from '@nestjs/jwt';
 import { PassportModule } from '@nestjs/passport';
 import { ConfigModule, ConfigService } from '@nestjs/config';
-import { UserEntity } from '../user/user.entity';
 import { UserModule } from '../user/user.module';
 import { VerificationModule } from '../verification/verification.module';
 import { AuthService } from './auth.service';
@@ -13,7 +11,6 @@ import { JwtAuthGuard } from './guards/jwt-auth.guard';
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([UserEntity]),
     PassportModule,
     UserModule,
     VerificationModule,

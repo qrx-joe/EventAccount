@@ -7,6 +7,7 @@ import {
   Param,
   Req,
   UseGuards,
+  ForbiddenException,
 } from '@nestjs/common';
 import {
   ApiTags,
@@ -19,6 +20,7 @@ import { UpdateUserDto } from './user.dto';
 import { ApiResponseDto } from '../../common/dto/api-response.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { JwtPayload } from '../auth/auth.dto';
+import { UserEntity } from './user.entity';
 
 /**
  * 用户控制器
@@ -34,45 +36,62 @@ export class UserController {
 
   /** 获取当前登录用户信息 */
   @ApiOperation({ summary: '获取当前用户信息' })
-  @ApiResponse({ status: 200, description: '查询成功' })
+  @ApiResponse({ status: 200, description: '查询成功', type: ApiResponseDto })
   @ApiResponse({ status: 401, description: '未登录' })
   @Get('me')
-  async getMe(@Req() req: { user: JwtPayload }) {
+  async getMe(
+    @Req() req: { user: JwtPayload },
+  ): Promise<ApiResponseDto<UserEntity>> {
     const user = await this.userService.findOne(req.user.sub);
     return ApiResponseDto.ok(user);
   }
 
   @ApiOperation({ summary: '查询所有用户' })
-  @ApiResponse({ status: 200, description: '查询成功' })
+  @ApiResponse({ status: 200, description: '查询成功', type: ApiResponseDto })
   @Get()
-  async findAll() {
+  async findAll(): Promise<ApiResponseDto<UserEntity[]>> {
     const users = await this.userService.findAll();
     return ApiResponseDto.ok(users);
   }
 
   @ApiOperation({ summary: '查询单个用户' })
-  @ApiResponse({ status: 200, description: '查询成功' })
+  @ApiResponse({ status: 200, description: '查询成功', type: ApiResponseDto })
   @ApiResponse({ status: 404, description: '用户不存在' })
   @Get(':id')
-  async findOne(@Param('id') id: string) {
+  async findOne(@Param('id') id: string): Promise<ApiResponseDto<UserEntity>> {
     const user = await this.userService.findOne(id);
     return ApiResponseDto.ok(user);
   }
 
-  @ApiOperation({ summary: '更新用户' })
-  @ApiResponse({ status: 200, description: '更新成功' })
+  @ApiOperation({ summary: '更新用户（仅限本人）' })
+  @ApiResponse({ status: 200, description: '更新成功', type: ApiResponseDto })
+  @ApiResponse({ status: 403, description: '无权操作他人数据' })
   @ApiResponse({ status: 404, description: '用户不存在' })
   @Put(':id')
-  async update(@Param('id') id: string, @Body() dto: UpdateUserDto) {
+  async update(
+    @Param('id') id: string,
+    @Body() dto: UpdateUserDto,
+    @Req() req: { user: JwtPayload },
+  ): Promise<ApiResponseDto<UserEntity>> {
+    if (req.user.sub !== id) {
+      throw new ForbiddenException('无权操作他人数据');
+    }
     const user = await this.userService.update(id, dto);
     return ApiResponseDto.ok(user);
   }
 
-  @ApiOperation({ summary: '删除用户' })
-  @ApiResponse({ status: 200, description: '删除成功' })
+  @ApiOperation({ summary: '删除用户（仅限本人）' })
+  @ApiResponse({ status: 200, description: '删除成功', type: ApiResponseDto })
+  @ApiResponse({ status: 403, description: '无权操作他人数据' })
   @ApiResponse({ status: 404, description: '用户不存在' })
   @Delete(':id')
-  async remove(@Param('id') id: string) {
+  async remove(
+    @Param('id') id: string,
+    @Req() req: { user: JwtPayload },
+  ): Promise<ApiResponseDto<null>> {
+    if (req.user.sub !== id) {
+      throw new ForbiddenException('无权操作他人数据');
+    }
     await this.userService.remove(id);
     return ApiResponseDto.ok(null, '删除成功');
   }

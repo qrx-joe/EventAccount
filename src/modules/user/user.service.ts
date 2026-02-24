@@ -91,4 +91,13 @@ export class UserService {
     await this.userRepo.remove(user);
     this.logger.log(`用户删除成功: ${id}`);
   }
+
+  /** 根据手机号查询用户（含密码字段，仅供 AuthService 登录校验使用） */
+  async findByPhoneWithPassword(phone: string): Promise<UserEntity | null> {
+    return this.userRepo
+      .createQueryBuilder('u')
+      .addSelect('u.password')
+      .where('u.phone = :phone', { phone })
+      .getOne();
+  }
 }

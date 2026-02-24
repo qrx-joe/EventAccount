@@ -1,8 +1,6 @@
 import { IsEnum, IsString, Matches } from 'class-validator';
 import { ApiProperty } from '@nestjs/swagger';
-
-/** 中国大陆手机号正则 */
-const PHONE_REGEX = /^1[3-9]\d{9}$/;
+import { PHONE_REGEX } from '../../common/constants/phone';
 
 /** 验证码类型枚举 */
 export enum VerificationCodeType {
