@@ -7,6 +7,7 @@ export enum VerificationCodeType {
   REGISTER = 'register',
   LOGIN = 'login',
   RESET = 'reset',
+  BIND_PHONE = 'bindphone',
 }
 
 /** 发送短信验证码请求体 */

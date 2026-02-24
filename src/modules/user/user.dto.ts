@@ -21,10 +21,12 @@ export class CreateUserDto {
   @ApiProperty({
     description: '密码（6-128 位）',
     example: 'password123',
+    required: false,
   })
+  @IsOptional()
   @IsString()
   @Length(6, 128)
-  password: string;
+  password?: string;
 
   @ApiProperty({
     description: '昵称',

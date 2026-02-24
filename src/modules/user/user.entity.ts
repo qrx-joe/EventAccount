@@ -61,10 +61,31 @@ export class UserEntity {
   @Column({
     type: 'varchar',
     length: 128,
-    comment: '密码（bcrypt 哈希）',
+    nullable: true,
+    comment: '密码（bcrypt 哈希，微信用户可为空）',
     select: false,
   })
-  password: string;
+  password: string | null;
+
+  @Column({
+    type: 'varchar',
+    length: 64,
+    unique: true,
+    nullable: true,
+    comment: '微信开放平台 OpenID',
+    select: false,
+  })
+  wechatOpenId: string | null;
+
+  @Column({
+    type: 'varchar',
+    length: 64,
+    unique: true,
+    nullable: true,
+    comment: '微信开放平台 UnionID',
+    select: false,
+  })
+  wechatUnionId: string | null;
 
   @CreateDateColumn({ comment: '创建时间' })
   createdAt: Date;

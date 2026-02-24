@@ -4,6 +4,7 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 import { ThrottlerModule } from '@nestjs/throttler';
 import databaseConfig from './config/database.config';
 import smsConfig from './config/sms.config';
+import wechatConfig from './config/wechat.config';
 import { UserModule } from './modules/user/user.module';
 import { AuthModule } from './modules/auth/auth.module';
 import { VerificationModule } from './modules/verification/verification.module';
@@ -14,7 +15,7 @@ import { AgreementModule } from './modules/agreement/agreement.module';
     ConfigModule.forRoot({
       isGlobal: true,
       envFilePath: ['.env', `.env.${process.env.NODE_ENV || 'dev'}`],
-      load: [databaseConfig, smsConfig],
+      load: [databaseConfig, smsConfig, wechatConfig],
     }),
 
     // TypeORM 数据库连接（异步读取配置）

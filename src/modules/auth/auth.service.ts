@@ -71,6 +71,11 @@ export class AuthService {
       throw new UnauthorizedException('手机号或密码错误');
     }
 
+    // 微信用户未设置密码，不能使用密码登录
+    if (!user.password) {
+      throw new UnauthorizedException('该账号未设置密码，请使用微信登录');
+    }
+
     const valid = await bcrypt.compare(dto.password, user.password);
     if (!valid) {
       throw new UnauthorizedException('手机号或密码错误');
@@ -166,10 +171,12 @@ export class AuthService {
       throw new UnauthorizedException('用户不存在');
     }
 
-    // 新旧密码不能相同
-    const isSame = await bcrypt.compare(dto.newPassword, user.password);
-    if (isSame) {
-      throw new BadRequestException('新密码不能与旧密码相同');
+    // 新旧密码不能相同（微信用户首次设密码无旧密码，跳过比较）
+    if (user.password) {
+      const isSame = await bcrypt.compare(dto.newPassword, user.password);
+      if (isSame) {
+        throw new BadRequestException('新密码不能与旧密码相同');
+      }
     }
 
     // 更新密码
