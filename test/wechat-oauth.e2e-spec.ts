@@ -5,14 +5,57 @@ import { App } from 'supertest/types';
 import { ThrottlerGuard } from '@nestjs/throttler';
 import { JwtService } from '@nestjs/jwt';
 import { AppModule } from '../src/app.module';
-import { HttpExceptionFilter } from '../src/common/filters/http-exception.filter';
+import { AllExceptionsFilter } from '../src/common/filters/http-exception.filter';
 import { VerificationService } from '../src/modules/verification/verification.service';
 import { UserService } from '../src/modules/user/user.service';
 import { WechatBindTokenPayload } from '../src/modules/auth/wechat/wechat-oauth.dto';
 
 /**
+ * 统一 API 响应体类型（与后端 ApiResponseDto 保持一致）
+ * 用于 e2e 测试中类型安全地访问 res.body
+ */
+interface ApiBody<T = unknown> {
+  success: boolean;
+  code: number;
+  message: string;
+  data: T;
+  timestamp: string;
+}
+
+/** 微信授权链接响应 */
+interface AuthorizeData {
+  authorizeUrl: string;
+}
+
+/** 微信回调响应（绑定手机号） */
+interface BindPhoneCallbackData {
+  action: 'bindphone';
+  bindToken: string;
+  wechatNickname: string;
+  wechatAvatar?: string;
+}
+
+/** 微信回调响应（登录） */
+interface LoginCallbackData {
+  action: 'login';
+  token: string;
+}
+
+/** 绑定手机号响应 */
+interface BindPhoneResultData {
+  token: string;
+}
+
+/** 用户信息响应 */
+interface UserMeData {
+  phone: string;
+  nickname: string;
+  [key: string]: unknown;
+}
+
+/**
  * 微信 OAuth 端到端测试（10 个用例）
- * Mock 模式下测试完整流程：获取授权链接 → 回调 → 绑定手机号 → 登录
+ * Mock 模式下测试完整流程：获取授权链接 -> 回调 -> 绑定手机号 -> 登录
  *
  * 注意：测试连接开发数据库，使用唯一测试手机号避免数据冲突
  */
@@ -49,7 +92,7 @@ describe('WeChat OAuth (e2e)', () => {
         transform: true,
       }),
     );
-    app.useGlobalFilters(new HttpExceptionFilter());
+    app.useGlobalFilters(new AllExceptionsFilter());
     await app.init();
 
     verificationService = app.get(VerificationService);
@@ -80,14 +123,15 @@ describe('WeChat OAuth (e2e)', () => {
     }
   }
 
-  // ─── 测试 1: 获取微信授权链接（Mock 模式）─────────────
-  it('GET /api/auth/wechat → 200，返回含 mock_code 的授权链接', async () => {
+  // --- 测试 1: 获取微信授权链接（Mock 模式）---
+  it('GET /api/auth/wechat -> 200，返回含 mock_code 的授权链接', async () => {
     const res = await request(app.getHttpServer())
       .get('/api/auth/wechat')
       .expect(200);
 
-    expect(res.body.success).toBe(true);
-    const { authorizeUrl } = res.body.data;
+    const body = res.body as ApiBody<AuthorizeData>;
+    expect(body.success).toBe(true);
+    const { authorizeUrl } = body.data;
     expect(authorizeUrl).toContain('mock_code');
     expect(authorizeUrl).toContain('state=');
 
@@ -97,43 +141,46 @@ describe('WeChat OAuth (e2e)', () => {
     expect(savedState).toHaveLength(32); // 16 bytes hex
   });
 
-  // ─── 测试 2: 微信回调 - 新用户 → bindphone ────────────
-  it('GET /api/auth/wechat/callback 新用户 → action=bindphone + bindToken', async () => {
+  // --- 测试 2: 微信回调 - 新用户 -> bindphone ---
+  it('GET /api/auth/wechat/callback 新用户 -> action=bindphone + bindToken', async () => {
     const res = await request(app.getHttpServer())
       .get('/api/auth/wechat/callback')
       .query({ code: 'mock_code', state: savedState })
       .expect(200);
 
-    expect(res.body.success).toBe(true);
-    expect(res.body.data.action).toBe('bindphone');
-    expect(res.body.data.bindToken).toBeDefined();
-    expect(res.body.data.wechatNickname).toBe('微信Mock用户');
+    const body = res.body as ApiBody<BindPhoneCallbackData>;
+    expect(body.success).toBe(true);
+    expect(body.data.action).toBe('bindphone');
+    expect(body.data.bindToken).toBeDefined();
+    expect(body.data.wechatNickname).toBe('微信Mock用户');
 
-    bindToken = res.body.data.bindToken;
+    bindToken = body.data.bindToken;
   });
 
-  // ─── 测试 3: state 重放攻击 → 400（一次性使用）────────
-  it('GET /api/auth/wechat/callback state 重放 → 400', async () => {
+  // --- 测试 3: state 重放攻击 -> 400（一次性使用）---
+  it('GET /api/auth/wechat/callback state 重放 -> 400', async () => {
     const res = await request(app.getHttpServer())
       .get('/api/auth/wechat/callback')
       .query({ code: 'mock_code', state: savedState })
       .expect(400);
 
-    expect(res.body.success).toBe(false);
+    const body = res.body as ApiBody<null>;
+    expect(body.success).toBe(false);
   });
 
-  // ─── 测试 4: 发送绑定手机号验证码 ────────────────────
-  it('POST /api/auth/sms/send type=bindphone → 200', async () => {
+  // --- 测试 4: 发送绑定手机号验证码 ---
+  it('POST /api/auth/sms/send type=bindphone -> 200', async () => {
     const res = await request(app.getHttpServer())
       .post('/api/auth/sms/send')
       .send({ phone: TEST_PHONE_WECHAT, type: 'bindphone' })
       .expect(201);
 
-    expect(res.body.success).toBe(true);
+    const body = res.body as ApiBody<null>;
+    expect(body.success).toBe(true);
   });
 
-  // ─── 测试 5: 绑定手机号 → 成功获得 token ──────────────
-  it('POST /api/auth/wechat/bindphone → 201 + token', async () => {
+  // --- 测试 5: 绑定手机号 -> 成功获得 token ---
+  it('POST /api/auth/wechat/bindphone -> 201 + token', async () => {
     // Mock 验证码校验通过（无法获取 Mock 生成的随机验证码）
     jest.spyOn(verificationService, 'verifyCode').mockReturnValueOnce(true);
 
@@ -146,30 +193,33 @@ describe('WeChat OAuth (e2e)', () => {
       })
       .expect(201);
 
-    expect(res.body.success).toBe(true);
-    expect(res.body.data.token).toBeDefined();
-    loginToken = res.body.data.token;
+    const body = res.body as ApiBody<BindPhoneResultData>;
+    expect(body.success).toBe(true);
+    expect(body.data.token).toBeDefined();
+    loginToken = body.data.token;
   });
 
-  // ─── 测试 6: 用 token 访问 /users/me → 200 ───────────
-  it('GET /api/users/me → 200，确认微信用户信息正确', async () => {
+  // --- 测试 6: 用 token 访问 /users/me -> 200 ---
+  it('GET /api/users/me -> 200，确认微信用户信息正确', async () => {
     const res = await request(app.getHttpServer())
       .get('/api/users/me')
       .set('Authorization', `Bearer ${loginToken}`)
       .expect(200);
 
-    expect(res.body.success).toBe(true);
-    expect(res.body.data.phone).toBe(TEST_PHONE_WECHAT);
-    expect(res.body.data.nickname).toBe('微信Mock用户');
+    const body = res.body as ApiBody<UserMeData>;
+    expect(body.success).toBe(true);
+    expect(body.data.phone).toBe(TEST_PHONE_WECHAT);
+    expect(body.data.nickname).toBe('微信Mock用户');
   });
 
-  // ─── 测试 7: 老用户回归 → 直接登录 ───────────────────
-  it('微信老用户回归 → action=login + token', async () => {
+  // --- 测试 7: 老用户回归 -> 直接登录 ---
+  it('微信老用户回归 -> action=login + token', async () => {
     // 获取新 state
     const authRes = await request(app.getHttpServer())
       .get('/api/auth/wechat')
       .expect(200);
-    const url = new URL(authRes.body.data.authorizeUrl);
+    const authBody = authRes.body as ApiBody<AuthorizeData>;
+    const url = new URL(authBody.data.authorizeUrl);
     const newState = url.searchParams.get('state')!;
 
     // 回调（mock_openid_fixed 已绑定用户，应直接登录）
@@ -178,19 +228,21 @@ describe('WeChat OAuth (e2e)', () => {
       .query({ code: 'mock_code', state: newState })
       .expect(200);
 
-    expect(res.body.data.action).toBe('login');
-    expect(res.body.data.token).toBeDefined();
+    const body = res.body as ApiBody<LoginCallbackData>;
+    expect(body.data.action).toBe('login');
+    expect(body.data.token).toBeDefined();
 
     // 验证 token 有效
     const meRes = await request(app.getHttpServer())
       .get('/api/users/me')
-      .set('Authorization', `Bearer ${res.body.data.token}`)
+      .set('Authorization', `Bearer ${body.data.token}`)
       .expect(200);
-    expect(meRes.body.data.phone).toBe(TEST_PHONE_WECHAT);
+    const meBody = meRes.body as ApiBody<UserMeData>;
+    expect(meBody.data.phone).toBe(TEST_PHONE_WECHAT);
   });
 
-  // ─── 测试 8: 无效 bindToken → 401 ────────────────────
-  it('POST /api/auth/wechat/bindphone 无效 bindToken → 401', async () => {
+  // --- 测试 8: 无效 bindToken -> 401 ---
+  it('POST /api/auth/wechat/bindphone 无效 bindToken -> 401', async () => {
     const res = await request(app.getHttpServer())
       .post('/api/auth/wechat/bindphone')
       .send({
@@ -200,11 +252,12 @@ describe('WeChat OAuth (e2e)', () => {
       })
       .expect(401);
 
-    expect(res.body.success).toBe(false);
+    const body = res.body as ApiBody<null>;
+    expect(body.success).toBe(false);
   });
 
-  // ─── 测试 9: 微信已绑定其他账号 → 409 ────────────────
-  it('POST /api/auth/wechat/bindphone 该微信已绑定其他账号 → 409', async () => {
+  // --- 测试 9: 微信已绑定其他账号 -> 409 ---
+  it('POST /api/auth/wechat/bindphone 该微信已绑定其他账号 -> 409', async () => {
     // 先注册一个普通用户（不同手机号）
     jest.spyOn(verificationService, 'verifyCode').mockReturnValueOnce(true);
     await request(app.getHttpServer())
@@ -226,7 +279,7 @@ describe('WeChat OAuth (e2e)', () => {
     };
     const forgedBindToken = jwtService.sign(payload, { expiresIn: '10m' });
 
-    // 尝试将 mock_openid_fixed 绑定到另一个用户 → 409 冲突
+    // 尝试将 mock_openid_fixed 绑定到另一个用户 -> 409 冲突
     jest.spyOn(verificationService, 'verifyCode').mockReturnValueOnce(true);
     const res = await request(app.getHttpServer())
       .post('/api/auth/wechat/bindphone')
@@ -237,12 +290,13 @@ describe('WeChat OAuth (e2e)', () => {
       })
       .expect(409);
 
-    expect(res.body.success).toBe(false);
-    expect(res.body.message).toContain('已绑定');
+    const body = res.body as ApiBody<null>;
+    expect(body.success).toBe(false);
+    expect(body.message).toContain('已绑定');
   });
 
-  // ─── 测试 10: 微信用户尝试密码登录 → 401 ──────────────
-  it('POST /api/auth/login/password 微信用户无密码 → 401', async () => {
+  // --- 测试 10: 微信用户尝试密码登录 -> 401 ---
+  it('POST /api/auth/login/password 微信用户无密码 -> 401', async () => {
     const res = await request(app.getHttpServer())
       .post('/api/auth/login/password')
       .send({
@@ -251,7 +305,8 @@ describe('WeChat OAuth (e2e)', () => {
       })
       .expect(401);
 
-    expect(res.body.success).toBe(false);
-    expect(res.body.message).toContain('未设置密码');
+    const body = res.body as ApiBody<null>;
+    expect(body.success).toBe(false);
+    expect(body.message).toContain('未设置密码');
   });
 });

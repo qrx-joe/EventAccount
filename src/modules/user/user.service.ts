@@ -100,9 +100,11 @@ export class UserService {
   /** 更新用户 */
   async update(id: string, dto: UpdateUserDto): Promise<UserEntity> {
     const user = await this.findOne(id);
-    // 显式提取允许更新的字段，避免 Object.assign 覆盖受保护字段
-    const { nickname, email, avatar, bio } = dto;
-    Object.assign(user, { nickname, email, avatar, bio });
+    // 逐字段赋值，避免 undefined 覆盖已有值
+    if (dto.nickname !== undefined) user.nickname = dto.nickname;
+    if (dto.email !== undefined) user.email = dto.email;
+    if (dto.avatar !== undefined) user.avatar = dto.avatar;
+    if (dto.bio !== undefined) user.bio = dto.bio;
     return this.userRepo.save(user);
   }
 

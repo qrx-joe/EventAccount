@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { ThrottlerModule } from '@nestjs/throttler';
+import * as Joi from 'joi';
 import databaseConfig from './config/database.config';
 import smsConfig from './config/sms.config';
 import wechatConfig from './config/wechat.config';
@@ -11,11 +12,27 @@ import { VerificationModule } from './modules/verification/verification.module';
 import { AgreementModule } from './modules/agreement/agreement.module';
 @Module({
   imports: [
-    // 全局配置模块，加载 .env 文件
+    // 全局配置模块，加载 .env 文件（环境专属文件优先，后加载的覆盖先加载的）
     ConfigModule.forRoot({
       isGlobal: true,
-      envFilePath: ['.env', `.env.${process.env.NODE_ENV || 'dev'}`],
+      envFilePath: [`.env.${process.env.NODE_ENV || 'dev'}`, '.env'],
       load: [databaseConfig, smsConfig, wechatConfig],
+      validationSchema: Joi.object({
+        // 数据库
+        DB_HOST: Joi.string().default('localhost'),
+        DB_PORT: Joi.number().default(5432),
+        DB_USERNAME: Joi.string().required(),
+        DB_PASSWORD: Joi.string().required(),
+        DB_DATABASE: Joi.string().required(),
+        // JWT
+        JWT_SECRET: Joi.string().required(),
+        JWT_EXPIRES_IN: Joi.string().default('7d'),
+        // 应用
+        PORT: Joi.number().default(3000),
+        NODE_ENV: Joi.string()
+          .valid('development', 'production', 'test')
+          .default('development'),
+      }),
     }),
 
     // TypeORM 数据库连接（异步读取配置）
