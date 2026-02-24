@@ -49,10 +49,9 @@ export class AuthController {
   @ApiOperation({ summary: '短信验证码登录' })
   @ApiResponse({
     status: 200,
-    description:
-      '登录成功，返回 JWT token 和 isNewUser（是否为自动注册的新用户）',
+    description: '登录成功，返回 JWT token',
   })
-  @ApiResponse({ status: 400, description: '验证码无效或已过期' })
+  @ApiResponse({ status: 400, description: '验证码无效或已过期 / 该手机号尚未注册' })
   @ApiResponse({ status: 429, description: '请求过于频繁' })
   @Throttle({ default: { ttl: 60000, limit: 10 } })
   @Post('login/sms')
