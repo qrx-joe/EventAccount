@@ -19,7 +19,7 @@
   ↓
 阶段4: 忘记密码 / 重置（手机号通道）     ✅ Complete
   ↓
-阶段5: 微信授权登录      ← 下一阶段
+阶段5: 微信授权登录      ✅ Complete
 
 完成后合并到 develop，squash 或保留 commit 均可
 ```
@@ -253,38 +253,66 @@
 
 ---
 
-## 阶段 5：微信授权登录
+## 阶段 5：微信开放平台 PC 扫码登录
 
-**commit:** `feat: 微信授权登录`
-**状态:** Not Started
+**commit:** `feat(微信登录): 阶段5 — 微信开放平台PC扫码登录`
+**状态:** Complete
 
 ### 后端
 
-- [ ] 新建 `src/modules/auth/wechat/` 子模块
-- [ ] 实现 `GET /api/auth/wechat` — 生成微信授权 URL 并重定向
-- [ ] 实现 `GET /api/auth/wechat/callback` — 微信回调处理
-  - 用授权码换取 access_token
-  - 获取微信用户信息（openid、unionid、昵称、头像）
-  - 查找已绑定账号 → 直接签发 JWT
-  - 未绑定 → 自动创建账号或引导绑定手机号
-- [ ] `user.entity.ts` 新增 `wechatOpenId`、`wechatUnionId` 字段
-- [ ] 新建 `src/config/wechat.config.ts` — AppID、AppSecret、回调 URL
-- [ ] 更新 `.env.example` 和 `.env.dev`
-- [ ] 接口测试：完整 OAuth 流程
+- [x] 新建 `src/config/wechat.config.ts` — registerAs('wechat') 配置 AppID、AppSecret、回调 URL
+- [x] 更新 `.env.dev` 和 `.env.example` — 新增 WECHAT_OPEN_APPID/SECRET/CALLBACK_URL
+- [x] `app.module.ts` — ConfigModule.load 添加 wechatConfig
+- [x] `user.entity.ts` — password 改为 nullable，新增 wechatOpenId（varchar 64, unique, nullable, select:false）和 wechatUnionId
+- [x] `user.dto.ts` — CreateUserDto.password 改为 @IsOptional
+- [x] `user.service.ts` — 新增 findByWechatOpenId()、createFromWechat()、linkWechat()，create() 适配 password 可选
+- [x] `verification.dto.ts` — VerificationCodeType 新增 BIND_PHONE = 'bindphone'
+- [x] `auth.service.ts` — loginByPassword 增加密码为空检查，resetPassword 适配微信用户首次设密码
+- [x] 新建 `src/modules/auth/wechat/wechat-oauth.dto.ts` — WechatCallbackQueryDto、WechatBindPhoneDto（class-validator）+ 接口定义
+- [x] 新建 `src/modules/auth/wechat/wechat-oauth.service.ts` — 核心 OAuth 服务
+  - Mock/真实双模式（WECHAT_OPEN_APPID 为空时自动 Mock，固定 openid = mock_openid_fixed）
+  - state CSRF 防护（内存 Map + 5 分钟过期 + 一次性使用 + 定期清理）
+  - getAuthorizeUrl() — 生成 state → 返回授权 URL
+  - handleCallback(code, state) — 验证 state → 获取用户信息 → 已绑定签 token / 未绑定签 bindToken
+  - bindPhone(dto) — 解码 bindToken → 验证短信 → 查找/创建用户 → 关联微信 → 签发 token
+- [x] 新建 `src/modules/auth/wechat/wechat-oauth.controller.ts` — 3 个端点（GET wechat、GET wechat/callback、POST wechat/bindphone）+ @Throttle + Swagger
+- [x] `auth.module.ts` — 注册 WechatOAuthController + WechatOAuthService
+- [x] 代码审查修复：
+  - bindPhone 中冗余的 findByWechatOpenId 查询合并为一次
+  - state 校验和验证码校验改用 BadRequestException（400）而非 UnauthorizedException（401）
+- [x] E2E 测试（10 个用例全部通过）：
+  1. ✅ 获取微信授权链接（Mock）→ authorizeUrl 含 mock_code + state
+  2. ✅ 微信回调 - 新用户 → action=bindphone + bindToken
+  3. ✅ state 重放攻击 → 400（一次性使用）
+  4. ✅ 发送绑定验证码（type=bindphone）→ 201
+  5. ✅ 绑定手机号 → 201 + token
+  6. ✅ 用 token 访问 /users/me → 200，确认微信用户信息
+  7. ✅ 微信老用户回归 → action=login + token
+  8. ✅ 无效 bindToken → 401
+  9. ✅ 微信已绑定其他账号 → 409
+  10. ✅ 微信用户密码登录 → 401 "该账号未设置密码"
+- [x] 测试基础设施改进：
+  - jest-e2e.json 添加 transformIgnorePatterns（uuid v13 ESM 兼容）
+  - test/setup-env.ts 加载 .env.dev（Jest 默认 NODE_ENV=test 无对应 env 文件）
 
 ### 前端
 
-- [ ] 登录页新增"微信登录"按钮
-- [ ] 微信授权回调页面处理（接收 token、跳转首页）
-- [ ] 首次微信登录绑定手机号页面（如需要）
+- [x] `types/index.ts` — 新增 WechatAuthorizeResult、WechatCallbackResult、WechatBindPhonePayload，SendSmsCodePayload.type 扩展 'bindphone'
+- [x] `lib/auth.ts` — 新增 getWechatAuthUrl()、wechatCallback()、wechatBindPhone()
+- [x] `router/index.ts` — 新增 /wechat/callback（无守卫）和 /wechat/bindphone（requiresGuest）
+- [x] `components/icons/WechatIcon.vue` — 微信绿色 SVG 图标组件
+- [x] `LoginView.vue` — 登录表单下方新增 Separator + "其他登录方式" + 微信登录按钮
+- [x] 新建 `WechatCallbackView.vue` — 回调中间页（onMounted 解析 code+state → 调 API → 按 action 分流）
+- [x] 新建 `WechatBindPhoneView.vue` — 绑定手机号表单（展示微信头像昵称 + 手机号 + 验证码 + 60s 倒计时）
+- [x] 代码审查修复：onUnmounted 中清理 sessionStorage 绑定数据
 
 ### 验收标准
 
-- 点击微信登录 → 跳转微信授权 → 授权成功 → 回调 → 获取 Token → 跳转首页
-- 已绑定用户直接登录
-- 未绑定用户引导绑定手机号
-
-### 前置条件
-
-- 微信开放平台 AppID 和 AppSecret
-- 回调域名配置（需与微信后台一致）
+- ✅ Mock 完整新用户流程：点击微信登录 → callback → 绑定手机号 → 登录成功
+- ✅ Mock 老用户回归：点击微信登录 → 直接登录
+- ✅ state 一次性使用，重放攻击被拒绝（400）
+- ✅ bindToken 有效期 10 分钟，过期/伪造返回 401
+- ✅ 微信已绑定其他账号 → 409 冲突
+- ✅ 微信用户（无密码）尝试密码登录 → 401 "该账号未设置密码"
+- ✅ 前后端编译 + lint 通过
+- ✅ 10 个 E2E 测试全部通过
