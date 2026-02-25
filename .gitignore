@@ -13,3 +13,4 @@ coverage/
 *.swp
 .DS_Store
 .env.dev
+IMPLEMENTATION_PLAN.md
