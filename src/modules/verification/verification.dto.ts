@@ -1,4 +1,4 @@
-import { IsEnum, IsString, Matches } from 'class-validator';
+import { IsEmail, IsEnum, IsString, Matches } from 'class-validator';
 import { ApiProperty } from '@nestjs/swagger';
 import { PHONE_REGEX } from '../../common/constants/phone';
 
@@ -24,6 +24,17 @@ export class SendSmsCodeDto {
     example: 'register',
     enum: VerificationCodeType,
   })
+  @IsEnum(VerificationCodeType)
+  type: VerificationCodeType;
+}
+
+/** 发送邮箱验证码请求体 */
+export class SendEmailCodeDto {
+  @ApiProperty({ description: '邮箱地址', example: 'user@example.com' })
+  @IsEmail({}, { message: '邮箱格式不正确' })
+  email: string;
+
+  @ApiProperty({ description: '验证码类型', example: 'login', enum: VerificationCodeType })
   @IsEnum(VerificationCodeType)
   type: VerificationCodeType;
 }

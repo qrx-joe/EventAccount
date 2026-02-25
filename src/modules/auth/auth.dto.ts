@@ -1,4 +1,4 @@
-import { IsString, Length, Matches, IsOptional } from 'class-validator';
+import { IsEmail, IsString, Length, Matches, IsOptional } from 'class-validator';
 import { ApiProperty } from '@nestjs/swagger';
 import { PHONE_REGEX } from '../../common/constants/phone';
 
@@ -95,4 +95,28 @@ export class ResetPasswordDto {
   @IsString()
   @Length(6, 128)
   confirmPassword: string;
+}
+
+/** 邮箱验证码登录请求体 */
+export class EmailLoginDto {
+  @ApiProperty({ description: '邮箱地址', example: 'user@example.com' })
+  @IsEmail({}, { message: '邮箱格式不正确' })
+  email: string;
+
+  @ApiProperty({ description: '邮箱验证码（6位数字）', example: '123456' })
+  @IsString()
+  @Matches(/^\d{6}$/, { message: '验证码为6位数字' })
+  emailCode: string;
+}
+
+/** 忘记密码 - 邮箱验证身份请求体 */
+export class ForgotPasswordEmailVerifyDto {
+  @ApiProperty({ description: '邮箱地址', example: 'user@example.com' })
+  @IsEmail({}, { message: '邮箱格式不正确' })
+  email: string;
+
+  @ApiProperty({ description: '邮箱验证码（6位数字）', example: '123456' })
+  @IsString()
+  @Matches(/^\d{6}$/, { message: '验证码为6位数字' })
+  emailCode: string;
 }

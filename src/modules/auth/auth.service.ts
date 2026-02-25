@@ -19,6 +19,8 @@ import {
   ForgotPasswordVerifyDto,
   ResetPasswordDto,
   ResetTokenPayload,
+  EmailLoginDto,
+  ForgotPasswordEmailVerifyDto,
 } from './auth.dto';
 
 /**
@@ -140,6 +142,57 @@ export class AuthService {
     const resetToken = this.jwtService.sign(payload, { expiresIn: '10m' });
 
     this.logger.log(`用户申请重置密码: ${user.id}`);
+    return { resetToken };
+  }
+
+  /** 邮箱验证码登录：校验验证码 → 按邮箱查找用户 → 签发 token */
+  async loginByEmail(dto: EmailLoginDto): Promise<{ token: string }> {
+    const valid = this.verificationService.verifyCode(
+      dto.email,
+      VerificationCodeType.LOGIN,
+      dto.emailCode,
+    );
+    if (!valid) {
+      throw new BadRequestException('验证码无效或已过期');
+    }
+
+    const user = await this.userService.findByEmail(dto.email);
+    if (!user) {
+      throw new BadRequestException('该邮箱尚未绑定，请先注册并绑定邮箱');
+    }
+
+    this.logger.log(`用户邮箱登录成功: ${user.id}`);
+    return { token: this.signToken(user) };
+  }
+
+  /** 忘记密码 - 邮箱验证身份：校验验证码 → 签发重置 token */
+  async verifyResetCodeByEmail(
+    dto: ForgotPasswordEmailVerifyDto,
+  ): Promise<{ resetToken: string }> {
+    // 校验邮箱验证码
+    const valid = this.verificationService.verifyCode(
+      dto.email,
+      VerificationCodeType.RESET,
+      dto.emailCode,
+    );
+    if (!valid) {
+      throw new BadRequestException('验证码无效或已过期');
+    }
+
+    // 查找用户（统一错误信息，避免泄露邮箱注册状态）
+    const user = await this.userService.findByEmail(dto.email);
+    if (!user) {
+      throw new BadRequestException('验证码无效或已过期');
+    }
+
+    // 签发短时效重置 token（10分钟有效）
+    const payload: ResetTokenPayload = {
+      sub: user.id,
+      purpose: 'password-reset',
+    };
+    const resetToken = this.jwtService.sign(payload, { expiresIn: '10m' });
+
+    this.logger.log(`用户通过邮箱申请重置密码: ${user.id}`);
     return { resetToken };
   }
 

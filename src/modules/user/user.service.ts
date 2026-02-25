@@ -83,6 +83,11 @@ export class UserService {
     return this.userRepo.findOne({ where: { phone } });
   }
 
+  /** 根据邮箱查询用户 */
+  async findByEmail(email: string): Promise<UserEntity | null> {
+    return this.userRepo.findOne({ where: { email } });
+  }
+
   /** 获取用户公开信息（不含敏感字段） */
   async getPublicProfile(
     id: string,

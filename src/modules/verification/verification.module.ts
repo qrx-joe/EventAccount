@@ -1,15 +1,16 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { VerificationController } from './verification.controller';
+import { EmailVerificationController } from './email-verification.controller';
 import { VerificationService } from './verification.service';
 
 /**
  * 验证码模块
- * 提供短信验证码发送和校验功能，供 auth 模块调用
+ * 提供短信/邮箱验证码发送和校验功能，供 auth 模块调用
  */
 @Module({
   imports: [ConfigModule],
-  controllers: [VerificationController],
+  controllers: [VerificationController, EmailVerificationController],
   providers: [VerificationService],
   exports: [VerificationService],
 })
