@@ -7,6 +7,7 @@ import {
   Matches,
 } from 'class-validator';
 import { ApiProperty } from '@nestjs/swagger';
+import { Transform } from 'class-transformer';
 
 /** 创建用户请求体 */
 export class CreateUserDto {
@@ -44,6 +45,9 @@ export class CreateUserDto {
     required: false,
   })
   @IsOptional()
+  @Transform(({ value }) =>
+    typeof value === 'string' ? value.trim().toLowerCase() : value,
+  )
   @IsEmail()
   email?: string;
 
@@ -85,6 +89,9 @@ export class UpdateUserDto {
     required: false,
   })
   @IsOptional()
+  @Transform(({ value }) =>
+    typeof value === 'string' ? value.trim().toLowerCase() : value,
+  )
   @IsEmail()
   email?: string;
 

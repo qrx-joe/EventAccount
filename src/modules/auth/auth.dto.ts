@@ -1,5 +1,6 @@
 import { IsEmail, IsString, Length, Matches, IsOptional } from 'class-validator';
 import { ApiProperty } from '@nestjs/swagger';
+import { Transform } from 'class-transformer';
 import { PHONE_REGEX } from '../../common/constants/phone';
 
 /** JWT payload 结构（只保留用户 ID，避免易变字段导致 token 过期前信息不一致） */
@@ -100,6 +101,9 @@ export class ResetPasswordDto {
 /** 邮箱验证码登录请求体 */
 export class EmailLoginDto {
   @ApiProperty({ description: '邮箱地址', example: 'user@example.com' })
+  @Transform(({ value }) =>
+    typeof value === 'string' ? value.trim().toLowerCase() : value,
+  )
   @IsEmail({}, { message: '邮箱格式不正确' })
   email: string;
 
@@ -112,6 +116,9 @@ export class EmailLoginDto {
 /** 忘记密码 - 邮箱验证身份请求体 */
 export class ForgotPasswordEmailVerifyDto {
   @ApiProperty({ description: '邮箱地址', example: 'user@example.com' })
+  @Transform(({ value }) =>
+    typeof value === 'string' ? value.trim().toLowerCase() : value,
+  )
   @IsEmail({}, { message: '邮箱格式不正确' })
   email: string;
 

@@ -21,6 +21,10 @@ const BCRYPT_SALT_ROUNDS = 12;
 export class UserService {
   private readonly logger = new Logger(UserService.name);
 
+  private normalizeEmail(email: string): string {
+    return email.trim().toLowerCase();
+  }
+
   constructor(
     @InjectRepository(UserEntity)
     private readonly userRepo: Repository<UserEntity>,
@@ -38,12 +42,14 @@ export class UserService {
 
     // 检查邮箱唯一性（如果提供了邮箱）
     if (dto.email) {
+      const normalizedEmail = this.normalizeEmail(dto.email);
       const existsByEmail = await this.userRepo.findOne({
-        where: { email: dto.email },
+        where: { email: normalizedEmail },
       });
       if (existsByEmail) {
         throw new ConflictException('该邮箱已被使用');
       }
+      dto.email = normalizedEmail;
     }
 
     // 未传昵称时自动生成默认值
@@ -85,7 +91,8 @@ export class UserService {
 
   /** 根据邮箱查询用户 */
   async findByEmail(email: string): Promise<UserEntity | null> {
-    return this.userRepo.findOne({ where: { email } });
+    const normalizedEmail = this.normalizeEmail(email);
+    return this.userRepo.findOne({ where: { email: normalizedEmail } });
   }
 
   /** 获取用户公开信息（不含敏感字段） */
@@ -107,7 +114,9 @@ export class UserService {
     const user = await this.findOne(id);
     // 逐字段赋值，避免 undefined 覆盖已有值
     if (dto.nickname !== undefined) user.nickname = dto.nickname;
-    if (dto.email !== undefined) user.email = dto.email;
+    if (dto.email !== undefined) {
+      user.email = dto.email ? this.normalizeEmail(dto.email) : dto.email;
+    }
     if (dto.avatar !== undefined) user.avatar = dto.avatar;
     if (dto.bio !== undefined) user.bio = dto.bio;
     return this.userRepo.save(user);
