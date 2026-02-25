@@ -32,13 +32,17 @@ export class SendSmsCodeDto {
 /** 发送邮箱验证码请求体 */
 export class SendEmailCodeDto {
   @ApiProperty({ description: '邮箱地址', example: 'user@example.com' })
-  @Transform(({ value }) =>
+  @Transform(({ value }: { value: unknown }) =>
     typeof value === 'string' ? value.trim().toLowerCase() : value,
   )
   @IsEmail({}, { message: '邮箱格式不正确' })
   email: string;
 
-  @ApiProperty({ description: '验证码类型', example: 'login', enum: VerificationCodeType })
+  @ApiProperty({
+    description: '验证码类型',
+    example: 'login',
+    enum: VerificationCodeType,
+  })
   @IsEnum(VerificationCodeType)
   type: VerificationCodeType;
 }
