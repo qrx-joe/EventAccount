@@ -80,7 +80,10 @@ export class AuthController {
   /** 邮箱验证码登录：60 秒内最多 10 次 */
   @ApiOperation({ summary: '邮箱验证码登录' })
   @ApiResponse({ status: 200, description: '登录成功，返回 JWT token' })
-  @ApiResponse({ status: 400, description: '验证码无效或已过期 / 该邮箱尚未绑定' })
+  @ApiResponse({
+    status: 400,
+    description: '验证码无效或已过期 / 该邮箱尚未绑定',
+  })
   @ApiResponse({ status: 429, description: '请求过于频繁' })
   @Throttle({ default: { ttl: 60000, limit: 10 } })
   @Post('login/email')
@@ -92,7 +95,10 @@ export class AuthController {
   /** 忘记密码 - 邮箱验证身份：60 秒内最多 5 次 */
   @ApiOperation({ summary: '忘记密码 - 邮箱验证身份' })
   @ApiResponse({ status: 200, description: '验证成功，返回重置密码令牌' })
-  @ApiResponse({ status: 400, description: '验证码无效、已过期或该邮箱未绑定账号' })
+  @ApiResponse({
+    status: 400,
+    description: '验证码无效、已过期或该邮箱未绑定账号',
+  })
   @ApiResponse({ status: 429, description: '请求过于频繁' })
   @Throttle({ default: { ttl: 60000, limit: 5 } })
   @Post('password/verify-reset-email')

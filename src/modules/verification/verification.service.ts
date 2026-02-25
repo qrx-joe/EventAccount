@@ -320,7 +320,11 @@ export class VerificationService implements OnModuleInit, OnModuleDestroy {
    * 校验验证码
    * @returns true 校验通过，false 校验失败
    */
-  verifyCode(target: string, type: VerificationCodeType, code: string): boolean {
+  verifyCode(
+    target: string,
+    type: VerificationCodeType,
+    code: string,
+  ): boolean {
     const key = this.getStoreKey(target, type);
     const entry = this.codeStore.get(key);
 
