@@ -49,7 +49,7 @@ export class UserService {
     // 未传昵称时自动生成默认值
     const nickname = dto.nickname ?? `用户${dto.phone.slice(-4)}`;
 
-    // 密码哈希（微信注册用户可无密码）
+    // 密码哈希
     const hashed = dto.password
       ? await bcrypt.hash(dto.password, BCRYPT_SALT_ROUNDS)
       : null;
@@ -113,50 +113,6 @@ export class UserService {
     const user = await this.findOne(id);
     await this.userRepo.remove(user);
     this.logger.log(`用户删除成功: ${id}`);
-  }
-
-  /** 根据微信 OpenID 查询用户 */
-  async findByWechatOpenId(openId: string): Promise<UserEntity | null> {
-    return this.userRepo
-      .createQueryBuilder('u')
-      .addSelect('u.wechatOpenId')
-      .addSelect('u.wechatUnionId')
-      .where('u.wechatOpenId = :openId', { openId })
-      .getOne();
-  }
-
-  /** 通过微信信息创建用户（无密码） */
-  async createFromWechat(params: {
-    phone: string;
-    nickname: string;
-    avatar?: string;
-    wechatOpenId: string;
-    wechatUnionId?: string;
-  }): Promise<UserEntity> {
-    const user = this.userRepo.create({
-      phone: params.phone,
-      nickname: params.nickname,
-      avatar: params.avatar || null,
-      password: null,
-      wechatOpenId: params.wechatOpenId,
-      wechatUnionId: params.wechatUnionId || null,
-    });
-    const saved = await this.userRepo.save(user);
-    this.logger.log(`微信用户创建成功: ${saved.id}`);
-    return saved;
-  }
-
-  /** 将已有用户关联微信 */
-  async linkWechat(
-    userId: string,
-    openId: string,
-    unionId?: string,
-  ): Promise<void> {
-    await this.userRepo.update(userId, {
-      wechatOpenId: openId,
-      wechatUnionId: unionId || null,
-    });
-    this.logger.log(`用户 ${userId} 关联微信成功`);
   }
 
   /** 根据手机号查询用户（含密码字段，仅供 AuthService 登录校验使用） */

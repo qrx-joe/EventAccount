@@ -5,7 +5,6 @@ import { ThrottlerModule } from '@nestjs/throttler';
 import * as Joi from 'joi';
 import databaseConfig from './config/database.config';
 import smsConfig from './config/sms.config';
-import wechatConfig from './config/wechat.config';
 import { UserModule } from './modules/user/user.module';
 import { AuthModule } from './modules/auth/auth.module';
 import { VerificationModule } from './modules/verification/verification.module';
@@ -16,7 +15,7 @@ import { AgreementModule } from './modules/agreement/agreement.module';
     ConfigModule.forRoot({
       isGlobal: true,
       envFilePath: [`.env.${process.env.NODE_ENV || 'dev'}`, '.env'],
-      load: [databaseConfig, smsConfig, wechatConfig],
+      load: [databaseConfig, smsConfig],
       validationSchema: Joi.object({
         // 数据库
         DB_HOST: Joi.string().default('localhost'),
