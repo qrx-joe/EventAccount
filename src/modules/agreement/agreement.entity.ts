@@ -4,6 +4,7 @@ import {
   CreateDateColumn,
   PrimaryColumn,
   BeforeInsert,
+  Index,
 } from 'typeorm';
 import { generateId } from '../../shared/utils/id-generator';
 
@@ -11,6 +12,7 @@ import { generateId } from '../../shared/utils/id-generator';
  * 协议内容实体
  * 存储各类协议的版本化内容，不可修改（新版本创建新记录）
  */
+@Index('IDX_agreements_type_date', ['type', 'effectiveDate'])
 @Entity('agreements')
 export class AgreementEntity {
   @PrimaryColumn({ type: 'varchar', length: 36, comment: 'UUIDv7 主键' })

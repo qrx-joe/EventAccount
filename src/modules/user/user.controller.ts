@@ -17,7 +17,7 @@ import {
   ApiParam,
 } from '@nestjs/swagger';
 import { UserService } from './user.service';
-import { UpdateUserDto } from './user.dto';
+import { UpdateUserDto, UserPublicDto } from './user.dto';
 import { ApiResponseDto } from '../../common/dto/api-response.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { JwtPayload } from '../auth/auth.dto';
@@ -57,29 +57,38 @@ export class UserController {
   @ApiResponse({ status: 404, description: '用户不存在' })
   @ApiParam({ name: 'id', description: '用户 ID（UUIDv7）', type: String })
   @Get(':id/profile')
-  async getPublicProfile(@Param('id') id: string) {
+  async getPublicProfile(
+    @Param('id') id: string,
+  ): Promise<ApiResponseDto<UserPublicDto>> {
     const profile = await this.userService.getPublicProfile(id);
     return ApiResponseDto.ok(profile);
   }
 
-  @ApiOperation({ summary: '查询所有用户' })
+  @ApiOperation({ summary: '查询所有用户（公开信息）' })
   @ApiResponse({ status: 200, description: '查询成功', type: ApiResponseDto })
   @ApiBearerAuth()
   @UseGuards(JwtAuthGuard)
   @Get()
-  async findAll(): Promise<ApiResponseDto<UserEntity[]>> {
+  async findAll(): Promise<ApiResponseDto<UserPublicDto[]>> {
     const users = await this.userService.findAll();
     return ApiResponseDto.ok(users);
   }
 
-  @ApiOperation({ summary: '查询单个用户' })
+  @ApiOperation({ summary: '查询单个用户（仅限本人）' })
   @ApiResponse({ status: 200, description: '查询成功', type: ApiResponseDto })
+  @ApiResponse({ status: 403, description: '无权访问他人信息' })
   @ApiResponse({ status: 404, description: '用户不存在' })
   @ApiBearerAuth()
   @UseGuards(JwtAuthGuard)
   @ApiParam({ name: 'id', description: '用户 ID（UUIDv7）', type: String })
   @Get(':id')
-  async findOne(@Param('id') id: string): Promise<ApiResponseDto<UserEntity>> {
+  async findOne(
+    @Param('id') id: string,
+    @Req() req: { user: JwtPayload },
+  ): Promise<ApiResponseDto<UserEntity>> {
+    if (req.user.sub !== id) {
+      throw new ForbiddenException('无权访问他人信息');
+    }
     const user = await this.userService.findOne(id);
     return ApiResponseDto.ok(user);
   }

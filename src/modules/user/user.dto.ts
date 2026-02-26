@@ -114,3 +114,24 @@ export class UpdateUserDto {
   @Length(0, 200)
   bio?: string;
 }
+
+/** 用户公开信息响应（列表与公开资料） */
+export class UserPublicDto {
+  @ApiProperty({ description: '用户 ID', example: '01924a7e-...' })
+  id: string;
+
+  @ApiProperty({ description: '昵称', example: '张三' })
+  nickname: string | null;
+
+  @ApiProperty({
+    description: '头像 URL',
+    example: 'https://example.com/avatar.png',
+  })
+  avatar: string | null;
+
+  @ApiProperty({ description: '个性签名', example: '这个人很懒' })
+  bio: string | null;
+
+  @ApiProperty({ description: '创建时间' })
+  createdAt: Date;
+}

@@ -42,7 +42,7 @@ export class AuthService {
   /** 注册：校验验证码 → 创建用户 → 签发 token */
   async register(dto: RegisterDto): Promise<{ token: string }> {
     // 校验短信验证码
-    const valid = this.verificationService.verifyCode(
+    const valid = await this.verificationService.verifyCode(
       dto.phone,
       VerificationCodeType.REGISTER,
       dto.smsCode,
@@ -88,7 +88,7 @@ export class AuthService {
 
   /** 短信验证码登录：校验验证码 → 查找用户 → 签发 token */
   async loginBySms(dto: SmsLoginDto): Promise<{ token: string }> {
-    const valid = this.verificationService.verifyCode(
+    const valid = await this.verificationService.verifyCode(
       dto.phone,
       VerificationCodeType.LOGIN,
       dto.smsCode,
@@ -119,7 +119,7 @@ export class AuthService {
     dto: ForgotPasswordVerifyDto,
   ): Promise<{ resetToken: string }> {
     // 校验短信验证码
-    const valid = this.verificationService.verifyCode(
+    const valid = await this.verificationService.verifyCode(
       dto.phone,
       VerificationCodeType.RESET,
       dto.smsCode,
@@ -147,7 +147,7 @@ export class AuthService {
 
   /** 邮箱验证码登录：校验验证码 → 按邮箱查找用户 → 签发 token */
   async loginByEmail(dto: EmailLoginDto): Promise<{ token: string }> {
-    const valid = this.verificationService.verifyCode(
+    const valid = await this.verificationService.verifyCode(
       dto.email,
       VerificationCodeType.LOGIN,
       dto.emailCode,
@@ -170,7 +170,7 @@ export class AuthService {
     dto: ForgotPasswordEmailVerifyDto,
   ): Promise<{ resetToken: string }> {
     // 校验邮箱验证码
-    const valid = this.verificationService.verifyCode(
+    const valid = await this.verificationService.verifyCode(
       dto.email,
       VerificationCodeType.RESET,
       dto.emailCode,

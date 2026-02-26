@@ -8,7 +8,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import * as bcrypt from 'bcrypt';
 import { UserEntity } from './user.entity';
-import { CreateUserDto, UpdateUserDto } from './user.dto';
+import { CreateUserDto, UpdateUserDto, UserPublicDto } from './user.dto';
 
 /** bcrypt 哈希轮数（12 轮 ≈ 300ms，安全性与性能的平衡点） */
 const BCRYPT_SALT_ROUNDS = 12;
@@ -70,9 +70,12 @@ export class UserService {
     return saved;
   }
 
-  /** 查询所有用户 */
-  async findAll(): Promise<UserEntity[]> {
-    return this.userRepo.find({ order: { createdAt: 'DESC' } });
+  /** 查询所有用户（仅公开字段） */
+  async findAll(): Promise<UserPublicDto[]> {
+    return this.userRepo.find({
+      select: ['id', 'nickname', 'avatar', 'bio', 'createdAt'],
+      order: { createdAt: 'DESC' },
+    });
   }
 
   /** 根据 ID 查询用户 */
@@ -96,12 +99,10 @@ export class UserService {
   }
 
   /** 获取用户公开信息（不含敏感字段） */
-  async getPublicProfile(
-    id: string,
-  ): Promise<Pick<UserEntity, 'id' | 'nickname' | 'avatar' | 'bio'>> {
+  async getPublicProfile(id: string): Promise<UserPublicDto> {
     const user = await this.userRepo.findOne({
       where: { id },
-      select: ['id', 'nickname', 'avatar', 'bio'],
+      select: ['id', 'nickname', 'avatar', 'bio', 'createdAt'],
     });
     if (!user) {
       throw new NotFoundException(`用户 ${id} 不存在`);
