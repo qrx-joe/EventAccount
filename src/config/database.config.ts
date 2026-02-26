@@ -9,5 +9,5 @@ export default registerAs('database', () => ({
   port: parseInt(process.env.DB_PORT || '5432', 10),
   username: process.env.DB_USERNAME || 'postgres',
   password: process.env.DB_PASSWORD || 'postgres',
-  database: process.env.DB_DATABASE || 't2_program',
+  database: process.env.DB_DATABASE || 't3_program',
 }));
