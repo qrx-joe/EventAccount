@@ -6,7 +6,7 @@ import { JwtPayload } from '../auth.dto';
 
 /**
  * JWT 策略
- * 从 Authorization Bearer token 中解析并验证 JWT
+ * 从 httpOnly Cookie 中解析并验证 JWT
  */
 @Injectable()
 export class JwtStrategy extends PassportStrategy(Strategy) {
@@ -16,7 +16,10 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
       throw new Error('环境变量 JWT_SECRET 未配置，服务无法启动');
     }
     super({
-      jwtFromRequest: ExtractJwt.fromAuthHeaderAsBearerToken(),
+      jwtFromRequest: ExtractJwt.fromExtractors([
+        (req: { cookies?: Record<string, string> }) =>
+          req.cookies?.access_token || null,
+      ]),
       ignoreExpiration: false,
       secretOrKey: secret,
     });

@@ -15,7 +15,6 @@ function getHttpServer(app: INestApplication): App {
   return app.getHttpServer() as unknown as App;
 }
 
-type TokenData = { token: string };
 type UserPublic = {
   id: string;
   nickname: string | null;
@@ -25,6 +24,13 @@ type UserPublic = {
 };
 type AgreementSign = { agreementType: string };
 type ResetTokenData = { resetToken: string };
+
+function expectSetAccessTokenCookie(res: Response): void {
+  const setCookie = (res.headers['set-cookie'] ?? []) as string[];
+  expect(setCookie.some((cookie) => cookie.startsWith('access_token='))).toBe(
+    true,
+  );
+}
 
 describe('认证与用户主链路 (e2e)', () => {
   let app: INestApplication;
@@ -51,19 +57,18 @@ describe('认证与用户主链路 (e2e)', () => {
       smsCode,
     );
 
-    const registerRes = await request(getHttpServer(app))
+    const authAgent = request.agent(getHttpServer(app));
+
+    const registerRes = await authAgent
       .post('/api/auth/register')
       .send({ phone, smsCode, password: 'Password123', nickname: '用户A' })
       .expect(201);
 
-    const registerBody = parseApiResponse<TokenData>(registerRes);
-    const token = registerBody.data?.token;
-    expect(token).toBeTruthy();
+    const registerBody = parseApiResponse<null>(registerRes);
+    expect(registerBody.data).toBeNull();
+    expectSetAccessTokenCookie(registerRes);
 
-    const usersRes = await request(getHttpServer(app))
-      .get('/api/users')
-      .set('Authorization', `Bearer ${token}`)
-      .expect(200);
+    const usersRes = await authAgent.get('/api/users').expect(200);
 
     const usersBody = parseApiResponse<UserPublic[]>(usersRes);
     expect(Array.isArray(usersBody.data)).toBe(true);
@@ -77,10 +82,7 @@ describe('认证与用户主链路 (e2e)', () => {
     expect(firstUser).not.toHaveProperty('phone');
     expect(firstUser).not.toHaveProperty('email');
 
-    const signedRes = await request(getHttpServer(app))
-      .get('/api/agreements/signed')
-      .set('Authorization', `Bearer ${token}`)
-      .expect(200);
+    const signedRes = await authAgent.get('/api/agreements/signed').expect(200);
 
     const signedBody = parseApiResponse<AgreementSign[]>(signedRes);
     const signedTypes = (signedBody.data ?? []).map(
@@ -94,7 +96,7 @@ describe('认证与用户主链路 (e2e)', () => {
   it('无效 token 访问受保护接口返回 401 且响应体统一', async () => {
     await request(getHttpServer(app))
       .get('/api/users/me')
-      .set('Authorization', 'Bearer invalid-token')
+      .set('Cookie', 'access_token=invalid-token')
       .expect(401)
       .expect((res: Response) => {
         const body = parseApiResponse<null>(res);
@@ -109,6 +111,8 @@ describe('认证与用户主链路 (e2e)', () => {
   it('A 用户访问 B 用户详情返回 403', async () => {
     const phoneA = '13800138002';
     const phoneB = '13800138003';
+    const userAAgent = request.agent(getHttpServer(app));
+    const userBAgent = request.agent(getHttpServer(app));
 
     await seedVerificationCode(
       app,
@@ -116,7 +120,7 @@ describe('认证与用户主链路 (e2e)', () => {
       VerificationCodeType.REGISTER,
       '111111',
     );
-    const userARegisterRes = await request(getHttpServer(app))
+    const userARegisterRes = await userAAgent
       .post('/api/auth/register')
       .send({
         phone: phoneA,
@@ -125,8 +129,9 @@ describe('认证与用户主链路 (e2e)', () => {
         nickname: '用户A',
       })
       .expect(201);
-    const userABody = parseApiResponse<TokenData>(userARegisterRes);
-    const tokenA = userABody.data?.token;
+    const userABody = parseApiResponse<null>(userARegisterRes);
+    expect(userABody.data).toBeNull();
+    expectSetAccessTokenCookie(userARegisterRes);
 
     await seedVerificationCode(
       app,
@@ -134,7 +139,7 @@ describe('认证与用户主链路 (e2e)', () => {
       VerificationCodeType.REGISTER,
       '222222',
     );
-    await request(getHttpServer(app))
+    const userBRegisterRes = await userBAgent
       .post('/api/auth/register')
       .send({
         phone: phoneB,
@@ -143,11 +148,9 @@ describe('认证与用户主链路 (e2e)', () => {
         nickname: '用户B',
       })
       .expect(201);
+    expectSetAccessTokenCookie(userBRegisterRes);
 
-    const usersRes = await request(getHttpServer(app))
-      .get('/api/users')
-      .set('Authorization', `Bearer ${tokenA}`)
-      .expect(200);
+    const usersRes = await userAAgent.get('/api/users').expect(200);
 
     const usersBody = parseApiResponse<UserPublic[]>(usersRes);
     const userB = (usersBody.data ?? []).find(
@@ -155,14 +158,12 @@ describe('认证与用户主链路 (e2e)', () => {
     );
     expect(userB?.id).toBeTruthy();
 
-    await request(getHttpServer(app))
-      .get(`/api/users/${userB?.id}`)
-      .set('Authorization', `Bearer ${tokenA}`)
-      .expect(403);
+    await userAAgent.get(`/api/users/${userB?.id}`).expect(403);
   });
 
   it('短信找回重置密码后：旧密码失效，新密码可登录', async () => {
     const phone = '13800138004';
+    const authAgent = request.agent(getHttpServer(app));
 
     await seedVerificationCode(
       app,
@@ -170,7 +171,7 @@ describe('认证与用户主链路 (e2e)', () => {
       VerificationCodeType.REGISTER,
       '333333',
     );
-    await request(getHttpServer(app))
+    await authAgent
       .post('/api/auth/register')
       .send({
         phone,
@@ -189,7 +190,7 @@ describe('认证与用户主链路 (e2e)', () => {
     const verifyRes = await request(getHttpServer(app))
       .post('/api/auth/password/verify-reset')
       .send({ phone, smsCode: '444444' })
-      .expect(201);
+      .expect(200);
 
     const verifyBody = parseApiResponse<ResetTokenData>(verifyRes);
     expect(verifyBody.code).toBe(200);
@@ -204,7 +205,7 @@ describe('认证与用户主链路 (e2e)', () => {
         newPassword: 'NewPass123',
         confirmPassword: 'NewPass123',
       })
-      .expect(201)
+      .expect(200)
       .expect((res: Response) => {
         const body = parseApiResponse<null>(res);
         expect(body.code).toBe(200);
@@ -215,14 +216,15 @@ describe('认证与用户主链路 (e2e)', () => {
       .send({ phone, password: 'OldPass123' })
       .expect(401);
 
-    await request(getHttpServer(app))
+    const loginRes = await request(getHttpServer(app))
       .post('/api/auth/login/password')
       .send({ phone, password: 'NewPass123' })
-      .expect(201)
+      .expect(200)
       .expect((res: Response) => {
-        const body = parseApiResponse<TokenData>(res);
+        const body = parseApiResponse<null>(res);
         expect(body.code).toBe(200);
-        expect(body.data?.token).toBeTruthy();
+        expect(body.data).toBeNull();
       });
+    expectSetAccessTokenCookie(loginRes);
   });
 });

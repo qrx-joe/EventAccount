@@ -1,4 +1,12 @@
-import { Controller, Post, Body, UseGuards } from '@nestjs/common';
+import {
+  Controller,
+  Post,
+  Body,
+  UseGuards,
+  Res,
+  HttpCode,
+} from '@nestjs/common';
+import type { Response } from 'express';
 import { ApiTags, ApiOperation, ApiResponse } from '@nestjs/swagger';
 import { ThrottlerGuard, Throttle } from '@nestjs/throttler';
 import { AuthService } from './auth.service';
@@ -23,6 +31,25 @@ import { ApiResponseDto } from '../../common/dto/api-response.dto';
 export class AuthController {
   constructor(private readonly authService: AuthService) {}
 
+  private getAccessTokenCookieOptions() {
+    const isProd = process.env.NODE_ENV === 'production';
+    return {
+      httpOnly: true,
+      secure: isProd,
+      sameSite: 'lax' as const,
+      path: '/',
+      maxAge: 7 * 24 * 60 * 60 * 1000,
+    };
+  }
+
+  private setAccessTokenCookie(res: Response, token: string): void {
+    res.cookie('access_token', token, this.getAccessTokenCookieOptions());
+  }
+
+  private clearAccessTokenCookie(res: Response): void {
+    res.clearCookie('access_token', this.getAccessTokenCookieOptions());
+  }
+
   /** 注册：60 秒内最多 5 次 */
   @ApiOperation({ summary: '用户注册（手机号 + 密码 + 验证码）' })
   @ApiResponse({ status: 201, description: '注册成功，返回 JWT token' })
@@ -30,9 +57,13 @@ export class AuthController {
   @ApiResponse({ status: 429, description: '请求过于频繁' })
   @Throttle({ default: { ttl: 60000, limit: 5 } })
   @Post('register')
-  async register(@Body() dto: RegisterDto) {
+  async register(
+    @Body() dto: RegisterDto,
+    @Res({ passthrough: true }) res: Response,
+  ) {
     const result = await this.authService.register(dto);
-    return ApiResponseDto.created(result, '注册成功');
+    this.setAccessTokenCookie(res, result.token);
+    return ApiResponseDto.created(null, '注册成功');
   }
 
   /** 密码登录：60 秒内最多 10 次 */
@@ -41,10 +72,15 @@ export class AuthController {
   @ApiResponse({ status: 401, description: '手机号或密码错误' })
   @ApiResponse({ status: 429, description: '请求过于频繁' })
   @Throttle({ default: { ttl: 60000, limit: 10 } })
+  @HttpCode(200)
   @Post('login/password')
-  async loginByPassword(@Body() dto: LoginPasswordDto) {
+  async loginByPassword(
+    @Body() dto: LoginPasswordDto,
+    @Res({ passthrough: true }) res: Response,
+  ) {
     const result = await this.authService.loginByPassword(dto);
-    return ApiResponseDto.ok(result, '登录成功');
+    this.setAccessTokenCookie(res, result.token);
+    return ApiResponseDto.ok(null, '登录成功');
   }
 
   /** 短信验证码登录：60 秒内最多 10 次 */
@@ -59,10 +95,15 @@ export class AuthController {
   })
   @ApiResponse({ status: 429, description: '请求过于频繁' })
   @Throttle({ default: { ttl: 60000, limit: 10 } })
+  @HttpCode(200)
   @Post('login/sms')
-  async loginBySms(@Body() dto: SmsLoginDto) {
+  async loginBySms(
+    @Body() dto: SmsLoginDto,
+    @Res({ passthrough: true }) res: Response,
+  ) {
     const result = await this.authService.loginBySms(dto);
-    return ApiResponseDto.ok(result, '登录成功');
+    this.setAccessTokenCookie(res, result.token);
+    return ApiResponseDto.ok(null, '登录成功');
   }
 
   /** 忘记密码 - 验证身份：60 秒内最多 5 次 */
@@ -71,6 +112,7 @@ export class AuthController {
   @ApiResponse({ status: 400, description: '验证码无效或该手机号未注册' })
   @ApiResponse({ status: 429, description: '请求过于频繁' })
   @Throttle({ default: { ttl: 60000, limit: 5 } })
+  @HttpCode(200)
   @Post('password/verify-reset')
   async verifyResetCode(@Body() dto: ForgotPasswordVerifyDto) {
     const result = await this.authService.verifyResetCode(dto);
@@ -86,10 +128,15 @@ export class AuthController {
   })
   @ApiResponse({ status: 429, description: '请求过于频繁' })
   @Throttle({ default: { ttl: 60000, limit: 10 } })
+  @HttpCode(200)
   @Post('login/email')
-  async loginByEmail(@Body() dto: EmailLoginDto) {
+  async loginByEmail(
+    @Body() dto: EmailLoginDto,
+    @Res({ passthrough: true }) res: Response,
+  ) {
     const result = await this.authService.loginByEmail(dto);
-    return ApiResponseDto.ok(result, '登录成功');
+    this.setAccessTokenCookie(res, result.token);
+    return ApiResponseDto.ok(null, '登录成功');
   }
 
   /** 忘记密码 - 邮箱验证身份：60 秒内最多 5 次 */
@@ -101,6 +148,7 @@ export class AuthController {
   })
   @ApiResponse({ status: 429, description: '请求过于频繁' })
   @Throttle({ default: { ttl: 60000, limit: 5 } })
+  @HttpCode(200)
   @Post('password/verify-reset-email')
   async verifyResetCodeByEmail(@Body() dto: ForgotPasswordEmailVerifyDto) {
     const result = await this.authService.verifyResetCodeByEmail(dto);
@@ -114,9 +162,19 @@ export class AuthController {
   @ApiResponse({ status: 401, description: '重置密码令牌无效或已过期' })
   @ApiResponse({ status: 429, description: '请求过于频繁' })
   @Throttle({ default: { ttl: 60000, limit: 5 } })
+  @HttpCode(200)
   @Post('password/reset')
   async resetPassword(@Body() dto: ResetPasswordDto) {
     await this.authService.resetPassword(dto);
     return ApiResponseDto.ok(null, '密码重置成功');
+  }
+
+  @ApiOperation({ summary: '退出登录' })
+  @ApiResponse({ status: 200, description: '退出成功' })
+  @HttpCode(200)
+  @Post('logout')
+  logout(@Res({ passthrough: true }) res: Response) {
+    this.clearAccessTokenCookie(res);
+    return ApiResponseDto.ok(null, '退出成功');
   }
 }
