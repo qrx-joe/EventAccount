@@ -15,7 +15,6 @@ import { AgreementModule } from './modules/agreement/agreement.module';
     // 全局配置模块，加载 .env 文件（环境专属文件优先，后加载的覆盖先加载的）
     ConfigModule.forRoot({
       isGlobal: true,
-      envFilePath: ['.env', `.env.${process.env.NODE_ENV || 'dev'}`],
       load: [databaseConfig, smsConfig, emailConfig],
       validationSchema: Joi.object({
         // 数据库
