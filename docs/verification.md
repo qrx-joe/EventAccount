@@ -15,8 +15,13 @@
 | `src/modules/verification/email-verification.controller.ts` | 邮箱验证码路由 `POST /auth/email/send` |
 | `src/modules/verification/verification.dto.ts` | 请求体 DTO + 验证码类型枚举 |
 | `src/modules/verification/verification.module.ts` | 模块声明，导出 VerificationService 供 AuthModule 使用 |
+| `src/modules/verification/store/verification-store.gateway.ts` | 存储网关，根据配置选择 memory 或 redis 后端 |
+| `src/modules/verification/store/verification-store.types.ts` | 存储接口定义（VerificationStore） |
+| `src/modules/verification/store/in-memory-verification.store.ts` | 内存存储实现，惰性过期 |
+| `src/modules/verification/store/redis-verification.store.ts` | Redis 存储实现，利用 Redis TTL |
 | `src/config/sms.config.ts` | 阿里云 SMS 配置（registerAs） |
 | `src/config/email.config.ts` | SMTP 邮件配置（registerAs） |
+| `src/config/redis.config.ts` | Redis 连接 + OTP 存储后端配置（registerAs） |
 
 ### 前端
 
@@ -31,7 +36,9 @@
 ### 1. 验证码生成与存储
 
 - **生成**: `crypto.randomInt(100000, 1000000)` 安全随机 6 位数字
-- **存储**: 内存 Map，key 格式 `target:type`（target 为手机号或邮箱，type 为 register/login/reset）
+- **存储后端**: 通过 `VerificationStoreGateway` 按配置选择 memory 或 redis（`redis.otpStoreBackend` 环境变量，默认 memory）
+  - **memory**: 内存 Map，key 格式 `target:type`，惰性过期（读/写时检查 `isExpired`，无定时清理）
+  - **redis**: Redis Hash + TTL，由 Redis 自动过期清理
 - **有效期**: 5 分钟
 - **一次性使用**: 校验成功后立即删除
 
@@ -60,8 +67,9 @@
 
 ### 5. 过期清理
 
-- `OnModuleInit` 启动 10 分钟间隔定时器，清理过期的验证码和频率限制条目
-- `OnModuleDestroy` 清除定时器，防内存泄漏
+- **memory 后端**: 惰性过期 — 读取/校验时检查 `isExpired`，过期条目在访问时删除，无后台定时清理
+- **redis 后端**: 依赖 Redis 原生 TTL 自动过期
+- `OnModuleDestroy` 关闭 Redis 连接（如使用 redis 后端），防连接泄漏
 
 ## 前端 Composable 设计
 
@@ -87,8 +95,16 @@ SMTP_PORT=465
 SMTP_USER=
 SMTP_PASS=
 SMTP_FROM=
+
+# 验证码存储后端（memory | redis，默认 memory）
+OTP_STORE_BACKEND=memory
+# Redis 配置（OTP_STORE_BACKEND=redis 时生效）
+REDIS_HOST=127.0.0.1
+REDIS_PORT=6379
+REDIS_PASSWORD=
+REDIS_DB=0
 ```
 
 ## 接口文档
 
-详细接口参数和返回值见 Swagger：`/api-docs`（Tags: 认证）
+详细接口参数和返回值见 Swagger：`/api/docs`（Tags: 认证）
