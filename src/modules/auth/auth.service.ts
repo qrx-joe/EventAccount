@@ -1,89 +1,237 @@
 import {
   Injectable,
-  ConflictException,
   UnauthorizedException,
+  BadRequestException,
   Logger,
 } from '@nestjs/common';
-import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
 import { JwtService } from '@nestjs/jwt';
 import * as bcrypt from 'bcrypt';
 import { UserEntity } from '../user/user.entity';
-import { RegisterDto, LoginDto } from './auth.dto';
-import { generateId } from '../../shared/utils/id-generator';
-
-/** JWT payload 结构 */
-export interface JwtPayload {
-  sub: string; // user id
-  email: string;
-  username: string;
-}
+import { UserService } from '../user/user.service';
+import { VerificationService } from '../verification/verification.service';
+import { VerificationCodeType } from '../verification/verification.dto';
+import { AgreementService } from '../agreement/agreement.service';
+import {
+  RegisterDto,
+  LoginPasswordDto,
+  SmsLoginDto,
+  JwtPayload,
+  ForgotPasswordVerifyDto,
+  ResetPasswordDto,
+  ResetTokenPayload,
+  EmailLoginDto,
+  ForgotPasswordEmailVerifyDto,
+} from './auth.dto';
 
 /**
  * 认证服务
  * 负责注册、登录、token 签发
+ * 通过 UserService 访问用户数据，不直接操作 Repository
  */
 @Injectable()
 export class AuthService {
   private readonly logger = new Logger(AuthService.name);
 
   constructor(
-    @InjectRepository(UserEntity)
-    private readonly userRepo: Repository<UserEntity>,
     private readonly jwtService: JwtService,
+    private readonly userService: UserService,
+    private readonly verificationService: VerificationService,
+    private readonly agreementService: AgreementService,
   ) {}
 
-  /** 注册 */
+  /** 注册：校验验证码 → 创建用户 → 签发 token */
   async register(dto: RegisterDto): Promise<{ token: string }> {
-    const exists = await this.userRepo.findOne({
-      where: [{ username: dto.username }, { email: dto.email }],
-    });
-    if (exists) {
-      throw new ConflictException('用户名或邮箱已存在');
+    // 校验短信验证码
+    const valid = this.verificationService.verifyCode(
+      dto.phone,
+      VerificationCodeType.REGISTER,
+      dto.smsCode,
+    );
+    if (!valid) {
+      throw new BadRequestException('验证码无效或已过期');
     }
 
-    const hashed = await bcrypt.hash(dto.password, 10);
-    const user = this.userRepo.create({
-      id: generateId(),
-      username: dto.username,
-      email: dto.email,
-      password: hashed,
+    // 委托 UserService 创建用户
+    const user = await this.userService.create({
+      phone: dto.phone,
+      password: dto.password,
+      nickname: dto.nickname,
     });
-    await this.userRepo.save(user);
-    this.logger.log(`用户注册成功: ${user.id}`);
 
+    // 自动签署注册协议（用户条款 + 隐私政策）
+    await this.agreementService.autoSignOnRegister(user.id);
+
+    this.logger.log(`用户注册成功: ${user.id}`);
     return { token: this.signToken(user) };
   }
 
-  /** 登录 */
-  async login(dto: LoginDto): Promise<{ token: string }> {
-    // select: false 的字段需要显式 addSelect
-    const user = await this.userRepo
-      .createQueryBuilder('u')
-      .addSelect('u.password')
-      .where('u.email = :email', { email: dto.email })
-      .getOne();
+  /** 密码登录：通过 UserService 查询用户（含密码），校验密码后签发 token */
+  async loginByPassword(dto: LoginPasswordDto): Promise<{ token: string }> {
+    const user = await this.userService.findByPhoneWithPassword(dto.phone);
 
     if (!user) {
-      throw new UnauthorizedException('邮箱或密码错误');
+      throw new UnauthorizedException('手机号或密码错误');
+    }
+
+    if (!user.password) {
+      throw new UnauthorizedException('手机号或密码错误');
     }
 
     const valid = await bcrypt.compare(dto.password, user.password);
     if (!valid) {
-      throw new UnauthorizedException('邮箱或密码错误');
+      throw new UnauthorizedException('手机号或密码错误');
     }
 
-    this.logger.log(`用户登录成功: ${user.id}`);
+    this.logger.log(`用户密码登录成功: ${user.id}`);
     return { token: this.signToken(user) };
   }
 
-  /** 签发 JWT */
+  /** 短信验证码登录：校验验证码 → 查找用户 → 签发 token */
+  async loginBySms(dto: SmsLoginDto): Promise<{ token: string }> {
+    const valid = this.verificationService.verifyCode(
+      dto.phone,
+      VerificationCodeType.LOGIN,
+      dto.smsCode,
+    );
+    if (!valid) {
+      throw new BadRequestException('验证码无效或已过期');
+    }
+
+    const user = await this.userService.findByPhone(dto.phone);
+    if (!user) {
+      throw new BadRequestException('该手机号尚未注册，请先注册');
+    }
+
+    this.logger.log(`用户短信登录成功: ${user.id}`);
+    return { token: this.signToken(user) };
+  }
+
+  /** 签发 JWT（只包含用户 ID，避免易变字段导致信息不一致） */
   private signToken(user: UserEntity): string {
     const payload: JwtPayload = {
       sub: user.id,
-      email: user.email,
-      username: user.username,
     };
     return this.jwtService.sign(payload);
+  }
+
+  /** 忘记密码 - 验证身份：校验验证码 → 签发重置 token */
+  async verifyResetCode(
+    dto: ForgotPasswordVerifyDto,
+  ): Promise<{ resetToken: string }> {
+    // 校验短信验证码
+    const valid = this.verificationService.verifyCode(
+      dto.phone,
+      VerificationCodeType.RESET,
+      dto.smsCode,
+    );
+    if (!valid) {
+      throw new BadRequestException('验证码无效或已过期');
+    }
+
+    // 查找用户（统一错误信息，避免泄露手机号注册状态）
+    const user = await this.userService.findByPhone(dto.phone);
+    if (!user) {
+      throw new BadRequestException('验证码无效或已过期');
+    }
+
+    // 签发短时效重置 token（10分钟有效）
+    const payload: ResetTokenPayload = {
+      sub: user.id,
+      purpose: 'password-reset',
+    };
+    const resetToken = this.jwtService.sign(payload, { expiresIn: '10m' });
+
+    this.logger.log(`用户申请重置密码: ${user.id}`);
+    return { resetToken };
+  }
+
+  /** 邮箱验证码登录：校验验证码 → 按邮箱查找用户 → 签发 token */
+  async loginByEmail(dto: EmailLoginDto): Promise<{ token: string }> {
+    const valid = this.verificationService.verifyCode(
+      dto.email,
+      VerificationCodeType.LOGIN,
+      dto.emailCode,
+    );
+    if (!valid) {
+      throw new BadRequestException('验证码无效或已过期');
+    }
+
+    const user = await this.userService.findByEmail(dto.email);
+    if (!user) {
+      throw new BadRequestException('该邮箱尚未绑定，请先注册并绑定邮箱');
+    }
+
+    this.logger.log(`用户邮箱登录成功: ${user.id}`);
+    return { token: this.signToken(user) };
+  }
+
+  /** 忘记密码 - 邮箱验证身份：校验验证码 → 签发重置 token */
+  async verifyResetCodeByEmail(
+    dto: ForgotPasswordEmailVerifyDto,
+  ): Promise<{ resetToken: string }> {
+    // 校验邮箱验证码
+    const valid = this.verificationService.verifyCode(
+      dto.email,
+      VerificationCodeType.RESET,
+      dto.emailCode,
+    );
+    if (!valid) {
+      throw new BadRequestException('验证码无效或已过期');
+    }
+
+    // 查找用户（统一错误信息，避免泄露邮箱注册状态）
+    const user = await this.userService.findByEmail(dto.email);
+    if (!user) {
+      throw new BadRequestException('验证码无效或已过期');
+    }
+
+    // 签发短时效重置 token（10分钟有效）
+    const payload: ResetTokenPayload = {
+      sub: user.id,
+      purpose: 'password-reset',
+    };
+    const resetToken = this.jwtService.sign(payload, { expiresIn: '10m' });
+
+    this.logger.log(`用户通过邮箱申请重置密码: ${user.id}`);
+    return { resetToken };
+  }
+
+  /** 重置密码：验证 token → 校验新旧密码 → 更新密码 */
+  async resetPassword(dto: ResetPasswordDto): Promise<void> {
+    // 校验两次密码输入一致
+    if (dto.newPassword !== dto.confirmPassword) {
+      throw new BadRequestException('两次输入的密码不一致');
+    }
+
+    // 手动验证 resetToken（不走 JwtAuthGuard，防止被当作登录 token 使用）
+    let payload: ResetTokenPayload;
+    try {
+      payload = this.jwtService.verify<ResetTokenPayload>(dto.resetToken);
+    } catch {
+      throw new UnauthorizedException('重置密码令牌无效或已过期');
+    }
+
+    // 校验 token 用途
+    if (payload.purpose !== 'password-reset') {
+      throw new UnauthorizedException('令牌用途不正确');
+    }
+
+    // 查找用户（含密码字段）
+    const user = await this.userService.findByIdWithPassword(payload.sub);
+    if (!user) {
+      throw new UnauthorizedException('用户不存在');
+    }
+
+    // 新旧密码不能相同（password 为 null 时跳过比较）
+    if (user.password) {
+      const isSame = await bcrypt.compare(dto.newPassword, user.password);
+      if (isSame) {
+        throw new BadRequestException('新密码不能与旧密码相同');
+      }
+    }
+
+    // 更新密码
+    await this.userService.updatePassword(user.id, dto.newPassword);
+    this.logger.log(`用户密码重置成功: ${user.id}`);
   }
 }
