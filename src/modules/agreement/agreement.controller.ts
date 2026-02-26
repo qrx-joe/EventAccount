@@ -15,7 +15,8 @@ import {
   ApiParam,
 } from '@nestjs/swagger';
 import { AgreementService } from './agreement.service';
-import { SignAgreementDto } from './agreement.dto';
+import { SignAgreementDto, ParseAgreementTypePipe } from './agreement.dto';
+import type { AgreementType } from './agreement.dto';
 import { ApiResponseDto } from '../../common/dto/api-response.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { JwtPayload } from '../auth/auth.dto';
@@ -35,7 +36,7 @@ export class AgreementController {
   @ApiOperation({ summary: '查询当前用户协议签署记录' })
   @ApiBearerAuth()
   @ApiResponse({ status: 200, description: '查询成功', type: ApiResponseDto })
-  @ApiResponse({ status: 401, description: '未登录' })
+  @ApiResponse({ status: 401, description: '未登录', type: ApiResponseDto })
   @UseGuards(JwtAuthGuard)
   @Get('signed')
   async getUserSigned(
@@ -49,10 +50,15 @@ export class AgreementController {
   @ApiOperation({ summary: '获取协议内容（按类型）' })
   @ApiParam({ name: 'type', description: '协议类型', example: 'user-terms' })
   @ApiResponse({ status: 200, description: '查询成功', type: ApiResponseDto })
-  @ApiResponse({ status: 404, description: '协议不存在' })
+  @ApiResponse({
+    status: 400,
+    description: '无效的协议类型',
+    type: ApiResponseDto,
+  })
+  @ApiResponse({ status: 404, description: '协议不存在', type: ApiResponseDto })
   @Get(':type')
   async getByType(
-    @Param('type') type: string,
+    @Param('type', ParseAgreementTypePipe) type: AgreementType,
   ): Promise<ApiResponseDto<AgreementEntity>> {
     const agreement = await this.agreementService.getLatestByType(type);
     return ApiResponseDto.ok(agreement);
@@ -62,8 +68,8 @@ export class AgreementController {
   @ApiOperation({ summary: '签署协议' })
   @ApiBearerAuth()
   @ApiResponse({ status: 200, description: '签署成功', type: ApiResponseDto })
-  @ApiResponse({ status: 401, description: '未登录' })
-  @ApiResponse({ status: 404, description: '协议不存在' })
+  @ApiResponse({ status: 401, description: '未登录', type: ApiResponseDto })
+  @ApiResponse({ status: 404, description: '协议不存在', type: ApiResponseDto })
   @UseGuards(JwtAuthGuard)
   @Post('sign')
   async sign(

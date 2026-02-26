@@ -32,7 +32,7 @@ export class AgreementService implements OnModuleInit {
   }
 
   /** 查询某类型最新版协议 */
-  async getLatestByType(type: string): Promise<AgreementEntity> {
+  async getLatestByType(type: AgreementType): Promise<AgreementEntity> {
     const agreement = await this.agreementRepo.findOne({
       where: { type },
       order: { effectiveDate: 'DESC' },
@@ -69,19 +69,23 @@ export class AgreementService implements OnModuleInit {
     return this.signRepo.save(sign);
   }
 
-  /** 注册时自动签署用户条款 + 隐私政策 */
+  /** 注册时自动签署用户条款 + 隐私政策（并行执行） */
   async autoSignOnRegister(userId: string): Promise<void> {
     const types: AgreementType[] = ['user-terms', 'privacy-policy'];
-    for (const type of types) {
-      try {
-        await this.signAgreement(userId, type);
-      } catch (err) {
-        // seed 数据未就绪时不阻塞注册流程，仅记录警告
+
+    const results = await Promise.allSettled(
+      types.map((type) => this.signAgreement(userId, type)),
+    );
+
+    // seed 数据未就绪时不阻塞注册流程，仅记录警告
+    results.forEach((result, index) => {
+      if (result.status === 'rejected') {
         this.logger.warn(
-          `自动签署协议 "${type}" 失败: ${(err as Error).message}`,
+          `自动签署协议 "${types[index]}" 失败: ${(result.reason as Error).message}`,
         );
       }
-    }
+    });
+
     this.logger.log(`用户 ${userId} 自动签署注册协议完成`);
   }
 
@@ -93,7 +97,7 @@ export class AgreementService implements OnModuleInit {
     });
   }
 
-  /** 幂等写入默认协议 seed 数据 */
+  /** 幂等写入默认协议 seed 数据（事务保证原子性） */
   private async seedDefaults(): Promise<void> {
     const seeds: Array<{
       type: AgreementType;
@@ -117,19 +121,21 @@ export class AgreementService implements OnModuleInit {
       },
     ];
 
-    for (const seed of seeds) {
-      const exists = await this.agreementRepo.findOne({
-        where: { type: seed.type, version: seed.version },
-      });
-      if (!exists) {
-        const entity = this.agreementRepo.create({
-          id: generateId(),
-          ...seed,
-          effectiveDate: new Date(),
+    await this.agreementRepo.manager.transaction(async (manager) => {
+      for (const seed of seeds) {
+        const exists = await manager.findOne(AgreementEntity, {
+          where: { type: seed.type, version: seed.version },
         });
-        await this.agreementRepo.save(entity);
-        this.logger.log(`Seed 协议: ${seed.title} v${seed.version}`);
+        if (!exists) {
+          const entity = manager.create(AgreementEntity, {
+            id: generateId(),
+            ...seed,
+            effectiveDate: new Date(),
+          });
+          await manager.save(entity);
+          this.logger.log(`Seed 协议: ${seed.title} v${seed.version}`);
+        }
       }
-    }
+    });
   }
 }

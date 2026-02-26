@@ -1,8 +1,16 @@
-/**
- * E2E 测试环境变量加载
- * Jest 默认 NODE_ENV=test，但项目只有 .env.dev，需要手动加载
- */
 import * as dotenv from 'dotenv';
 import * as path from 'path';
+import * as fs from 'fs';
 
-dotenv.config({ path: path.resolve(__dirname, '..', '.env.dev') });
+const rootDir = path.resolve(__dirname, '..');
+const testEnvPath = path.join(rootDir, '.env.test');
+const devEnvPath = path.join(rootDir, '.env.dev');
+
+const envPath = fs.existsSync(testEnvPath) ? testEnvPath : devEnvPath;
+dotenv.config({ path: envPath });
+
+process.env.NODE_ENV = 'test';
+
+if (process.env.DB_DATABASE_TEST) {
+  process.env.DB_DATABASE = process.env.DB_DATABASE_TEST;
+}

@@ -3,6 +3,7 @@ import { ConfigModule } from '@nestjs/config';
 import { VerificationController } from './verification.controller';
 import { EmailVerificationController } from './email-verification.controller';
 import { VerificationService } from './verification.service';
+import { VerificationStoreGateway } from './store/verification-store.gateway';
 
 /**
  * 验证码模块
@@ -11,7 +12,7 @@ import { VerificationService } from './verification.service';
 @Module({
   imports: [ConfigModule],
   controllers: [VerificationController, EmailVerificationController],
-  providers: [VerificationService],
+  providers: [VerificationStoreGateway, VerificationService],
   exports: [VerificationService],
 })
 export class VerificationModule {}

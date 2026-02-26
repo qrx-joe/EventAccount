@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, UnauthorizedException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { PassportStrategy } from '@nestjs/passport';
 import { ExtractJwt, Strategy } from 'passport-jwt';
@@ -25,7 +25,7 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
   /** 验证通过后将 payload 挂载到 request.user（拒绝非登录用途的 token） */
   validate(payload: JwtPayload & { purpose?: string }): JwtPayload {
     if (payload.purpose) {
-      throw new Error('无效的认证令牌');
+      throw new UnauthorizedException('无效的认证令牌');
     }
     return { sub: payload.sub };
   }
