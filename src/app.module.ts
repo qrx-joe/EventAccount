@@ -12,10 +12,9 @@ import { VerificationModule } from './modules/verification/verification.module';
 import { AgreementModule } from './modules/agreement/agreement.module';
 @Module({
   imports: [
-    // 全局配置模块，加载 .env 文件（.env 优先，后加载的覆盖先加载的）
+    // 全局配置模块，加载 .env 文件
     ConfigModule.forRoot({
       isGlobal: true,
-      envFilePath: [`.env.${process.env.NODE_ENV || 'dev'}`, '.env'],
       load: [databaseConfig, smsConfig, emailConfig],
       validationSchema: Joi.object({
         // 数据库
