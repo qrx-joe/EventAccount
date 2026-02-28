@@ -23,11 +23,72 @@ import { ApiResponseDto } from '../../common/dto/api-response.dto.js';
 import { EventService } from './event.service.js';
 import { EventEntity } from './event.entity.js';
 import { CreateEventDto, UpdateEventDto, QueryEventDto } from './event.dto.js';
+import { AmapService } from '../../shared/services/amap.service.js';
+import {
+  SearchLocationDto,
+  GeocodeDto,
+  ReverseGeocodeDto,
+} from './dto/location.dto.js';
 
 @ApiTags('活动')
 @Controller('events')
 export class EventController {
-  constructor(private readonly eventService: EventService) {}
+  constructor(
+    private readonly eventService: EventService,
+    private readonly amapService: AmapService,
+  ) {}
+
+  // ==================== 地图相关接口（公开，无需登录） ====================
+
+  /**
+   * 搜索地点（POI 文本搜索）
+   * 公开接口，无需登录
+   */
+  @Get('locations/search')
+  @ApiOperation({ summary: '搜索地点' })
+  @ApiResponse({ status: 200, description: '搜索成功' })
+  async searchLocation(
+    @Query() dto: SearchLocationDto,
+  ): Promise<ApiResponseDto<unknown>> {
+    const result = await this.amapService.searchPlace(
+      dto.keywords,
+      dto.city,
+      dto.page,
+      dto.limit,
+    );
+    return ApiResponseDto.ok(result);
+  }
+
+  /**
+   * 地理编码：地址 -> 坐标
+   * 公开接口，无需登录
+   */
+  @Get('locations/geocode')
+  @ApiOperation({ summary: '地理编码' })
+  @ApiResponse({ status: 200, description: '编码成功' })
+  async geocode(@Query() dto: GeocodeDto): Promise<ApiResponseDto<unknown>> {
+    const result = await this.amapService.geocode(dto.address, dto.city);
+    return ApiResponseDto.ok(result);
+  }
+
+  /**
+   * 逆地理编码：坐标 -> 地址
+   * 公开接口，无需登录
+   */
+  @Get('locations/reverse-geocode')
+  @ApiOperation({ summary: '逆地理编码' })
+  @ApiResponse({ status: 200, description: '解码成功' })
+  async reverseGeocode(
+    @Query() dto: ReverseGeocodeDto,
+  ): Promise<ApiResponseDto<unknown>> {
+    const result = await this.amapService.reverseGeocode(
+      dto.longitude,
+      dto.latitude,
+    );
+    return ApiResponseDto.ok(result);
+  }
+
+  // ==================== 活动 CRUD 接口 ====================
 
   /**
    * 创建活动

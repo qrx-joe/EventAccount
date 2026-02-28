@@ -7,6 +7,7 @@ import databaseConfig from './config/database.config';
 import smsConfig from './config/sms.config';
 import emailConfig from './config/email.config';
 import ossConfig from './config/oss.config';
+import amapConfig from './config/amap.config';
 import { UserModule } from './modules/user/user.module';
 import { AuthModule } from './modules/auth/auth.module';
 import { VerificationModule } from './modules/verification/verification.module';
@@ -20,7 +21,7 @@ import { EventModule } from './modules/event/event.module';
     // 全局配置模块，加载 .env 文件（环境专属文件优先，后加载的覆盖先加载的）
     ConfigModule.forRoot({
       isGlobal: true,
-      load: [databaseConfig, smsConfig, emailConfig, ossConfig],
+      load: [databaseConfig, smsConfig, emailConfig, ossConfig, amapConfig],
       validationSchema: Joi.object({
         // 数据库
         DB_HOST: Joi.string().default('localhost'),

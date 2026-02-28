@@ -5,6 +5,7 @@ import { EventTicketEntity } from './event-ticket.entity.js';
 import { EventCoHostEntity } from './event-co-host.entity.js';
 import { EventController } from './event.controller.js';
 import { EventService } from './event.service.js';
+import { SharedServicesModule } from '../../shared/services/shared-services.module.js';
 
 /**
  * 活动模块
@@ -18,6 +19,7 @@ import { EventService } from './event.service.js';
       EventTicketEntity,
       EventCoHostEntity,
     ]),
+    SharedServicesModule,
   ],
   controllers: [EventController],
   providers: [EventService],
