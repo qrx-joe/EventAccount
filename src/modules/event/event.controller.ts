@@ -121,6 +121,70 @@ export class EventController {
     return ApiResponseDto.ok(result);
   }
 
+  // ==================== 活动状态管理接口 ====================
+
+  /**
+   * 发布活动
+   * 仅创建者可操作，仅 draft 状态可发布
+   */
+  @Post(':id/publish')
+  @ApiOperation({ summary: '发布活动' })
+  @ApiBearerAuth()
+  @UseGuards(JwtAuthGuard)
+  @ApiParam({ name: 'id', description: '活动 ID' })
+  @ApiResponse({ status: 200, description: '发布成功' })
+  @ApiResponse({ status: 400, description: '状态不允许发布' })
+  @ApiResponse({ status: 403, description: '无权操作' })
+  @ApiResponse({ status: 404, description: '活动不存在' })
+  async publish(
+    @Param('id') id: string,
+    @Req() req: { user: JwtPayload },
+  ): Promise<ApiResponseDto<EventEntity>> {
+    const event = await this.eventService.publish(id, req.user.sub);
+    return ApiResponseDto.ok(event, '发布成功');
+  }
+
+  /**
+   * 取消活动
+   * 仅创建者可操作，仅 published 状态可取消
+   */
+  @Post(':id/cancel')
+  @ApiOperation({ summary: '取消活动' })
+  @ApiBearerAuth()
+  @UseGuards(JwtAuthGuard)
+  @ApiParam({ name: 'id', description: '活动 ID' })
+  @ApiResponse({ status: 200, description: '取消成功' })
+  @ApiResponse({ status: 400, description: '状态不允许取消' })
+  @ApiResponse({ status: 403, description: '无权操作' })
+  @ApiResponse({ status: 404, description: '活动不存在' })
+  async cancel(
+    @Param('id') id: string,
+    @Req() req: { user: JwtPayload },
+  ): Promise<ApiResponseDto<EventEntity>> {
+    const event = await this.eventService.cancel(id, req.user.sub);
+    return ApiResponseDto.ok(event, '取消成功');
+  }
+
+  /**
+   * 复制活动
+   * 仅创建者可操作，创建新的 draft 副本
+   */
+  @Post(':id/copy')
+  @ApiOperation({ summary: '复制活动' })
+  @ApiBearerAuth()
+  @UseGuards(JwtAuthGuard)
+  @ApiParam({ name: 'id', description: '活动 ID' })
+  @ApiResponse({ status: 201, description: '复制成功' })
+  @ApiResponse({ status: 403, description: '无权操作' })
+  @ApiResponse({ status: 404, description: '活动不存在' })
+  async copy(
+    @Param('id') id: string,
+    @Req() req: { user: JwtPayload },
+  ): Promise<ApiResponseDto<EventEntity>> {
+    const event = await this.eventService.copy(id, req.user.sub);
+    return ApiResponseDto.created(event, '复制成功');
+  }
+
   /**
    * 获取活动详情
    * 无需登录

@@ -2,6 +2,7 @@ import {
   Injectable,
   NotFoundException,
   ForbiddenException,
+  BadRequestException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
@@ -137,6 +138,75 @@ export class EventService {
 
     const [items, total] = await qb.getManyAndCount();
     return { items, total };
+  }
+
+  /**
+   * 发布活动
+   * 仅 draft 状态可发布，发布后状态变为 published
+   */
+  async publish(id: string, userId: string): Promise<EventEntity> {
+    const event = await this.findById(id);
+    this.assertCreator(event, userId);
+
+    if (event.status !== 'draft') {
+      throw new BadRequestException('只有草稿状态的活动可以发布');
+    }
+
+    event.status = 'published';
+    event.publishedAt = new Date();
+
+    return this.eventRepository.save(event);
+  }
+
+  /**
+   * 取消活动
+   * 仅 published 状态可取消，取消后状态变为 cancelled
+   */
+  async cancel(id: string, userId: string): Promise<EventEntity> {
+    const event = await this.findById(id);
+    this.assertCreator(event, userId);
+
+    if (event.status !== 'published') {
+      throw new BadRequestException('只有已发布的活动可以取消');
+    }
+
+    event.status = 'cancelled';
+
+    return this.eventRepository.save(event);
+  }
+
+  /**
+   * 复制活动
+   * 基于现有活动创建新的 draft 副本（不复制门票、协办人、标签关联）
+   */
+  async copy(id: string, userId: string): Promise<EventEntity> {
+    const event = await this.findById(id);
+    this.assertCreator(event, userId);
+
+    const copied = this.eventRepository.create({
+      creatorId: userId,
+      title: `${event.title}（副本）`,
+      description: event.description,
+      coverImage: event.coverImage,
+      startTime: event.startTime,
+      endTime: event.endTime,
+      timezone: event.timezone,
+      locationType: event.locationType,
+      locationName: event.locationName,
+      locationAddress: event.locationAddress,
+      latitude: event.latitude,
+      longitude: event.longitude,
+      onlineLink: event.onlineLink,
+      visibility: event.visibility,
+      requireApproval: event.requireApproval,
+      capacity: event.capacity,
+      categoryId: event.categoryId,
+      theme: event.theme,
+      status: 'draft',
+      auditStatus: 'pending',
+    });
+
+    return this.eventRepository.save(copied);
   }
 
   /**
