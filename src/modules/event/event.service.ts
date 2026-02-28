@@ -7,7 +7,9 @@ import {
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { EventEntity } from './event.entity.js';
+import { EventTicketEntity } from './event-ticket.entity.js';
 import { CreateEventDto, UpdateEventDto, QueryEventDto } from './event.dto.js';
+import { CreateTicketDto, UpdateTicketDto } from './ticket.dto.js';
 
 /**
  * 活动服务
@@ -18,6 +20,8 @@ export class EventService {
   constructor(
     @InjectRepository(EventEntity)
     private readonly eventRepository: Repository<EventEntity>,
+    @InjectRepository(EventTicketEntity)
+    private readonly ticketRepository: Repository<EventTicketEntity>,
   ) {}
 
   /**
@@ -209,6 +213,117 @@ export class EventService {
     return this.eventRepository.save(copied);
   }
 
+  // ==================== 门票管理 ====================
+
+  /**
+   * 获取活动的所有门票
+   * 按 sortOrder 升序排列
+   */
+  async getTickets(eventId: string): Promise<EventTicketEntity[]> {
+    // 先验证活动存在
+    await this.findById(eventId);
+
+    return this.ticketRepository.find({
+      where: { eventId },
+      order: { sortOrder: 'ASC', createdAt: 'ASC' },
+    });
+  }
+
+  /**
+   * 创建门票
+   * 仅创建者可操作，校验售卖时间窗口
+   */
+  async createTicket(
+    eventId: string,
+    dto: CreateTicketDto,
+    userId: string,
+  ): Promise<EventTicketEntity> {
+    const event = await this.findById(eventId);
+    this.assertCreator(event, userId);
+
+    // 校验售卖时间窗口
+    this.validateSaleTimeWindow(dto.saleStartTime, dto.saleEndTime);
+
+    const ticket = this.ticketRepository.create({
+      eventId,
+      ...dto,
+    });
+
+    return this.ticketRepository.save(ticket);
+  }
+
+  /**
+   * 更新门票
+   * 仅创建者可操作，校验数量和售卖时间
+   */
+  async updateTicket(
+    eventId: string,
+    ticketId: string,
+    dto: UpdateTicketDto,
+    userId: string,
+  ): Promise<EventTicketEntity> {
+    const event = await this.findById(eventId);
+    this.assertCreator(event, userId);
+
+    const ticket = await this.ticketRepository.findOne({
+      where: { id: ticketId, eventId },
+    });
+    if (!ticket) {
+      throw new NotFoundException('门票不存在');
+    }
+
+    // 校验数量：新数量不能小于已售数量
+    if (
+      dto.quantity !== undefined &&
+      dto.quantity > 0 &&
+      dto.quantity < ticket.soldCount
+    ) {
+      throw new BadRequestException(
+        `数量不能小于已售数量（已售 ${ticket.soldCount}）`,
+      );
+    }
+
+    // 校验售卖时间窗口（合并现有值和更新值）
+    const startTime =
+      dto.saleStartTime ?? (ticket.saleStartTime?.toISOString() || undefined);
+    const endTime =
+      dto.saleEndTime ?? (ticket.saleEndTime?.toISOString() || undefined);
+    this.validateSaleTimeWindow(startTime, endTime);
+
+    Object.assign(ticket, dto);
+    return this.ticketRepository.save(ticket);
+  }
+
+  /**
+   * 删除门票
+   * 仅创建者可操作，已有售出记录时不可删除
+   */
+  async deleteTicket(
+    eventId: string,
+    ticketId: string,
+    userId: string,
+  ): Promise<void> {
+    const event = await this.findById(eventId);
+    this.assertCreator(event, userId);
+
+    const ticket = await this.ticketRepository.findOne({
+      where: { id: ticketId, eventId },
+    });
+    if (!ticket) {
+      throw new NotFoundException('门票不存在');
+    }
+
+    if (ticket.soldCount > 0) {
+      throw new BadRequestException(
+        `该门票已售出 ${ticket.soldCount} 张，无法删除`,
+      );
+    }
+
+    await this.ticketRepository.remove(ticket);
+  }
+
+  // ==================== 私有方法 ====================
+
   /**
    * 校验当前用户是否为活动创建者
    * @throws ForbiddenException 非创建者时抛出
@@ -216,6 +331,23 @@ export class EventService {
   private assertCreator(event: EventEntity, userId: string): void {
     if (event.creatorId !== userId) {
       throw new ForbiddenException('无权操作此活动');
+    }
+  }
+
+  /**
+   * 校验售卖时间窗口
+   * 开售时间必须早于停售时间
+   */
+  private validateSaleTimeWindow(
+    saleStartTime?: string,
+    saleEndTime?: string,
+  ): void {
+    if (saleStartTime && saleEndTime) {
+      const start = new Date(saleStartTime);
+      const end = new Date(saleEndTime);
+      if (start >= end) {
+        throw new BadRequestException('开售时间必须早于停售时间');
+      }
     }
   }
 }

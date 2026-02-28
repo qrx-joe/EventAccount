@@ -23,6 +23,8 @@ import { ApiResponseDto } from '../../common/dto/api-response.dto.js';
 import { EventService } from './event.service.js';
 import { EventEntity } from './event.entity.js';
 import { CreateEventDto, UpdateEventDto, QueryEventDto } from './event.dto.js';
+import { CreateTicketDto, UpdateTicketDto } from './ticket.dto.js';
+import { EventTicketEntity } from './event-ticket.entity.js';
 import { AmapService } from '../../shared/services/amap.service.js';
 import {
   SearchLocationDto,
@@ -239,6 +241,97 @@ export class EventController {
     @Req() req: { user: JwtPayload },
   ): Promise<ApiResponseDto<null>> {
     await this.eventService.delete(id, req.user.sub);
+    return ApiResponseDto.ok(null, '删除成功');
+  }
+
+  // ==================== 门票管理接口 ====================
+
+  /**
+   * 获取活动的所有门票
+   * 无需登录
+   */
+  @Get(':id/tickets')
+  @ApiOperation({ summary: '获取活动门票列表' })
+  @ApiParam({ name: 'id', description: '活动 ID' })
+  @ApiResponse({ status: 200, description: '查询成功' })
+  @ApiResponse({ status: 404, description: '活动不存在' })
+  async getTickets(
+    @Param('id') id: string,
+  ): Promise<ApiResponseDto<EventTicketEntity[]>> {
+    const tickets = await this.eventService.getTickets(id);
+    return ApiResponseDto.ok(tickets);
+  }
+
+  /**
+   * 创建门票
+   * 仅创建者可操作
+   */
+  @Post(':id/tickets')
+  @ApiOperation({ summary: '创建门票' })
+  @ApiBearerAuth()
+  @UseGuards(JwtAuthGuard)
+  @ApiParam({ name: 'id', description: '活动 ID' })
+  @ApiResponse({ status: 201, description: '创建成功' })
+  @ApiResponse({ status: 403, description: '无权操作' })
+  @ApiResponse({ status: 404, description: '活动不存在' })
+  async createTicket(
+    @Param('id') id: string,
+    @Body() dto: CreateTicketDto,
+    @Req() req: { user: JwtPayload },
+  ): Promise<ApiResponseDto<EventTicketEntity>> {
+    const ticket = await this.eventService.createTicket(id, dto, req.user.sub);
+    return ApiResponseDto.created(ticket, '创建成功');
+  }
+
+  /**
+   * 更新门票
+   * 仅创建者可操作
+   */
+  @Patch(':eventId/tickets/:ticketId')
+  @ApiOperation({ summary: '更新门票' })
+  @ApiBearerAuth()
+  @UseGuards(JwtAuthGuard)
+  @ApiParam({ name: 'eventId', description: '活动 ID' })
+  @ApiParam({ name: 'ticketId', description: '门票 ID' })
+  @ApiResponse({ status: 200, description: '更新成功' })
+  @ApiResponse({ status: 400, description: '数量不能小于已售数量' })
+  @ApiResponse({ status: 403, description: '无权操作' })
+  @ApiResponse({ status: 404, description: '活动或门票不存在' })
+  async updateTicket(
+    @Param('eventId') eventId: string,
+    @Param('ticketId') ticketId: string,
+    @Body() dto: UpdateTicketDto,
+    @Req() req: { user: JwtPayload },
+  ): Promise<ApiResponseDto<EventTicketEntity>> {
+    const ticket = await this.eventService.updateTicket(
+      eventId,
+      ticketId,
+      dto,
+      req.user.sub,
+    );
+    return ApiResponseDto.ok(ticket, '更新成功');
+  }
+
+  /**
+   * 删除门票
+   * 仅创建者可操作，已售出则不可删除
+   */
+  @Delete(':eventId/tickets/:ticketId')
+  @ApiOperation({ summary: '删除门票' })
+  @ApiBearerAuth()
+  @UseGuards(JwtAuthGuard)
+  @ApiParam({ name: 'eventId', description: '活动 ID' })
+  @ApiParam({ name: 'ticketId', description: '门票 ID' })
+  @ApiResponse({ status: 200, description: '删除成功' })
+  @ApiResponse({ status: 400, description: '已售出无法删除' })
+  @ApiResponse({ status: 403, description: '无权操作' })
+  @ApiResponse({ status: 404, description: '活动或门票不存在' })
+  async deleteTicket(
+    @Param('eventId') eventId: string,
+    @Param('ticketId') ticketId: string,
+    @Req() req: { user: JwtPayload },
+  ): Promise<ApiResponseDto<null>> {
+    await this.eventService.deleteTicket(eventId, ticketId, req.user.sub);
     return ApiResponseDto.ok(null, '删除成功');
   }
 }
