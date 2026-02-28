@@ -14,6 +14,7 @@ import { AgreementModule } from './modules/agreement/agreement.module';
 import { UploadModule } from './modules/upload/upload.module';
 import { TagModule } from './modules/tag/tag.module';
 import { CategoryModule } from './modules/category/category.module';
+import { EventModule } from './modules/event/event.module';
 @Module({
   imports: [
     // 全局配置模块，加载 .env 文件（环境专属文件优先，后加载的覆盖先加载的）
@@ -69,6 +70,7 @@ import { CategoryModule } from './modules/category/category.module';
     UploadModule,
     TagModule,
     CategoryModule,
+    EventModule,
   ],
 })
 export class AppModule {}
