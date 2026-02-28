@@ -12,6 +12,7 @@ import { AuthModule } from './modules/auth/auth.module';
 import { VerificationModule } from './modules/verification/verification.module';
 import { AgreementModule } from './modules/agreement/agreement.module';
 import { UploadModule } from './modules/upload/upload.module';
+import { TagModule } from './modules/tag/tag.module';
 @Module({
   imports: [
     // 全局配置模块，加载 .env 文件（环境专属文件优先，后加载的覆盖先加载的）
@@ -65,6 +66,7 @@ import { UploadModule } from './modules/upload/upload.module';
     VerificationModule,
     AgreementModule,
     UploadModule,
+    TagModule,
   ],
 })
 export class AppModule {}
