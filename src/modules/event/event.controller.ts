@@ -25,12 +25,15 @@ import { EventEntity } from './event.entity.js';
 import { CreateEventDto, UpdateEventDto, QueryEventDto } from './event.dto.js';
 import { CreateTicketDto, UpdateTicketDto } from './ticket.dto.js';
 import { EventTicketEntity } from './event-ticket.entity.js';
+import { EventCoHostEntity } from './event-co-host.entity.js';
+import { UserEntity } from '../user/user.entity.js';
 import { AmapService } from '../../shared/services/amap.service.js';
 import {
   SearchLocationDto,
   GeocodeDto,
   ReverseGeocodeDto,
 } from './dto/location.dto.js';
+import { ManageCoHostDto } from './dto/co-host.dto.js';
 
 @ApiTags('活动')
 @Controller('events')
@@ -333,5 +336,78 @@ export class EventController {
   ): Promise<ApiResponseDto<null>> {
     await this.eventService.deleteTicket(eventId, ticketId, req.user.sub);
     return ApiResponseDto.ok(null, '删除成功');
+  }
+
+  // ==================== 协办人管理接口 ====================
+
+  /**
+   * 获取活动协办人列表
+   * 仅创建者或协办人可查看
+   */
+  @Get(':id/co-hosts')
+  @ApiOperation({ summary: '获取活动协办人列表' })
+  @ApiBearerAuth()
+  @UseGuards(JwtAuthGuard)
+  @ApiParam({ name: 'id', description: '活动 ID' })
+  @ApiResponse({ status: 200, description: '查询成功' })
+  @ApiResponse({ status: 403, description: '无权查看' })
+  @ApiResponse({ status: 404, description: '活动不存在' })
+  async getCoHosts(
+    @Param('id') id: string,
+    @Req() req: { user: JwtPayload },
+  ): Promise<ApiResponseDto<UserEntity[]>> {
+    const users = await this.eventService.getCoHosts(id, req.user.sub);
+    return ApiResponseDto.ok(users);
+  }
+
+  /**
+   * 添加协办人
+   * 仅活动创建者可添加，协办人可管理报名但不能删除/取消活动
+   */
+  @Post(':id/co-hosts')
+  @ApiOperation({ summary: '添加协办人' })
+  @ApiBearerAuth()
+  @UseGuards(JwtAuthGuard)
+  @ApiParam({ name: 'id', description: '活动 ID' })
+  @ApiResponse({ status: 201, description: '添加成功' })
+  @ApiResponse({
+    status: 400,
+    description: '不能添加创建者为协办人 / 已是协办人',
+  })
+  @ApiResponse({ status: 403, description: '无权操作' })
+  @ApiResponse({ status: 404, description: '活动或用户不存在' })
+  async addCoHost(
+    @Param('id') id: string,
+    @Body() dto: ManageCoHostDto,
+    @Req() req: { user: JwtPayload },
+  ): Promise<ApiResponseDto<EventCoHostEntity>> {
+    const coHost = await this.eventService.addCoHost(
+      id,
+      dto.userId,
+      req.user.sub,
+    );
+    return ApiResponseDto.created(coHost, '添加成功');
+  }
+
+  /**
+   * 移除协办人
+   * 仅活动创建者可移除
+   */
+  @Delete(':id/co-hosts/:userId')
+  @ApiOperation({ summary: '移除协办人' })
+  @ApiBearerAuth()
+  @UseGuards(JwtAuthGuard)
+  @ApiParam({ name: 'id', description: '活动 ID' })
+  @ApiParam({ name: 'userId', description: '协办人用户 ID' })
+  @ApiResponse({ status: 200, description: '移除成功' })
+  @ApiResponse({ status: 403, description: '无权操作' })
+  @ApiResponse({ status: 404, description: '活动或协办人不存在' })
+  async removeCoHost(
+    @Param('id') id: string,
+    @Param('userId') userId: string,
+    @Req() req: { user: JwtPayload },
+  ): Promise<ApiResponseDto<null>> {
+    await this.eventService.removeCoHost(id, userId, req.user.sub);
+    return ApiResponseDto.ok(null, '移除成功');
   }
 }

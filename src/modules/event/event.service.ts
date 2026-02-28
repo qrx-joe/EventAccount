@@ -10,6 +10,8 @@ import { EventEntity } from './event.entity.js';
 import { EventTicketEntity } from './event-ticket.entity.js';
 import { CreateEventDto, UpdateEventDto, QueryEventDto } from './event.dto.js';
 import { CreateTicketDto, UpdateTicketDto } from './ticket.dto.js';
+import { EventCoHostEntity } from './event-co-host.entity.js';
+import { UserEntity } from '../user/user.entity.js';
 
 /**
  * 活动服务
@@ -22,6 +24,10 @@ export class EventService {
     private readonly eventRepository: Repository<EventEntity>,
     @InjectRepository(EventTicketEntity)
     private readonly ticketRepository: Repository<EventTicketEntity>,
+    @InjectRepository(EventCoHostEntity)
+    private readonly eventCoHostRepository: Repository<EventCoHostEntity>,
+    @InjectRepository(UserEntity)
+    private readonly userRepository: Repository<UserEntity>,
   ) {}
 
   /**
@@ -53,7 +59,7 @@ export class EventService {
   async findById(id: string): Promise<EventEntity> {
     const event = await this.eventRepository.findOne({
       where: { id },
-      relations: ['creator', 'category', 'tags', 'tickets'],
+      relations: ['creator', 'category', 'tags', 'tickets', 'coHosts'],
     });
 
     if (!event) {
@@ -213,11 +219,91 @@ export class EventService {
     return this.eventRepository.save(copied);
   }
 
+  // ==================== 协办人管理 ====================
+
+  /**
+   * 获取活动协办人列表
+   * 创建者或协办人可见
+   */
+  async getCoHosts(eventId: string, userId: string): Promise<UserEntity[]> {
+    const event = await this.findById(eventId);
+    this.assertCreatorOrCoHost(event, userId);
+
+    const coHosts = await this.eventCoHostRepository.find({
+      where: { eventId },
+      relations: ['user'],
+      order: { createdAt: 'ASC' },
+    });
+
+    return coHosts.map((item) => item.user);
+  }
+
+  /**
+   * 添加协办人
+   * 仅活动创建者可添加
+   */
+  async addCoHost(
+    eventId: string,
+    targetUserId: string,
+    userId: string,
+  ): Promise<EventCoHostEntity> {
+    const event = await this.findById(eventId);
+    this.assertCreator(event, userId);
+
+    if (event.creatorId === targetUserId) {
+      throw new BadRequestException('创建者无需重复添加为协办人');
+    }
+
+    const targetUser = await this.userRepository.findOne({
+      where: { id: targetUserId },
+    });
+    if (!targetUser) {
+      throw new NotFoundException('目标用户不存在');
+    }
+
+    const exists = await this.eventCoHostRepository.findOne({
+      where: { eventId, userId: targetUserId },
+    });
+    if (exists) {
+      throw new BadRequestException('该用户已是协办人');
+    }
+
+    const coHost = this.eventCoHostRepository.create({
+      eventId,
+      userId: targetUserId,
+    });
+    const saved = await this.eventCoHostRepository.save(coHost);
+    saved.user = targetUser;
+    return saved;
+  }
+
+  /**
+   * 移除协办人
+   * 仅活动创建者可移除
+   */
+  async removeCoHost(
+    eventId: string,
+    targetUserId: string,
+    userId: string,
+  ): Promise<void> {
+    const event = await this.findById(eventId);
+    this.assertCreator(event, userId);
+
+    const coHost = await this.eventCoHostRepository.findOne({
+      where: { eventId, userId: targetUserId },
+    });
+    if (!coHost) {
+      throw new NotFoundException('协办人不存在');
+    }
+
+    await this.eventCoHostRepository.remove(coHost);
+  }
+
   // ==================== 门票管理 ====================
 
   /**
-   * 获取活动的所有门票
-   * 按 sortOrder 升序排列
+   * 获取活动的所有门票列表
+   * 按排序权重和创建时间排序
    */
   async getTickets(eventId: string): Promise<EventTicketEntity[]> {
     // 先验证活动存在
@@ -331,6 +417,20 @@ export class EventService {
   private assertCreator(event: EventEntity, userId: string): void {
     if (event.creatorId !== userId) {
       throw new ForbiddenException('无权操作此活动');
+    }
+  }
+
+  /**
+   * 校验当前用户是否为创建者或协办人
+   */
+  private assertCreatorOrCoHost(event: EventEntity, userId: string): void {
+    if (event.creatorId === userId) {
+      return;
+    }
+
+    const isCoHost = event.coHosts?.some((host) => host.userId === userId);
+    if (!isCoHost) {
+      throw new ForbiddenException('无权查看协办人列表');
     }
   }
 
