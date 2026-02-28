@@ -3,22 +3,31 @@ import {
   NotFoundException,
   ForbiddenException,
   BadRequestException,
+  Logger,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
+import * as QRCode from 'qrcode';
 import { EventEntity } from './event.entity.js';
 import { EventTicketEntity } from './event-ticket.entity.js';
-import { CreateEventDto, UpdateEventDto, QueryEventDto } from './event.dto.js';
+import {
+  CreateEventDto,
+  UpdateEventDto,
+  QueryEventDto,
+  MyEventsQueryDto,
+} from './event.dto.js';
 import { CreateTicketDto, UpdateTicketDto } from './ticket.dto.js';
 import { EventCoHostEntity } from './event-co-host.entity.js';
 import { UserEntity } from '../user/user.entity.js';
 
 /**
  * 活动服务
- * 提供活动基础 CRUD，含创建者权限校验
+ * 提供活动基础 CRUD、我的活动列表、分享/海报/二维码生成，含创建者权限校验
  */
 @Injectable()
 export class EventService {
+  private readonly logger = new Logger(EventService.name);
+
   constructor(
     @InjectRepository(EventEntity)
     private readonly eventRepository: Repository<EventEntity>,
@@ -219,6 +228,146 @@ export class EventService {
     return this.eventRepository.save(copied);
   }
 
+  // ==================== 我的活动列表 ====================
+
+  /**
+   * 获取用户创建的活动列表
+   * 支持状态筛选和分页
+   */
+  async getMyCreatedEvents(
+    userId: string,
+    query: MyEventsQueryDto,
+  ): Promise<{ items: EventEntity[]; total: number }> {
+    const { status, page = 1, limit = 20 } = query;
+
+    const qb = this.eventRepository
+      .createQueryBuilder('event')
+      .leftJoinAndSelect('event.category', 'category')
+      .leftJoinAndSelect('event.tags', 'tags')
+      .where('event.creatorId = :userId', { userId });
+
+    if (status) {
+      qb.andWhere('event.status = :status', { status });
+    }
+
+    qb.orderBy('event.createdAt', 'DESC')
+      .skip((page - 1) * limit)
+      .take(limit);
+
+    const [items, total] = await qb.getManyAndCount();
+    return { items, total };
+  }
+
+  /**
+   * 获取用户报名的活动列表
+   * 注意：依赖 Registration 模块（Task 14），当前返回空列表
+   */
+  getMyRegisteredEvents(
+    userId: string,
+    query: MyEventsQueryDto,
+  ): { items: EventEntity[]; total: number } {
+    // TODO: Task 14 实现报名模块后，通过 registration 表关联查询
+    this.logger.warn(
+      `getMyRegisteredEvents: Registration 模块尚未实现，用户 ${userId} 查询返回空列表`,
+    );
+    void query; // 避免未使用参数警告
+    return { items: [], total: 0 };
+  }
+
+  // ==================== 分享与二维码 ====================
+
+  /**
+   * 生成活动分享链接
+   * 创建者或协办人可生成
+   */
+  async generateShareLink(
+    eventId: string,
+    userId: string,
+  ): Promise<{ shareUrl: string }> {
+    const event = await this.findById(eventId);
+    this.assertCreatorOrCoHost(event, userId);
+
+    // 构建分享链接，指向前端活动详情页
+    const baseUrl = this.frontendBaseUrl;
+    const shareUrl = `${baseUrl}/events/${eventId}`;
+
+    return { shareUrl };
+  }
+
+  /**
+   * 生成签到二维码
+   * 创建者或协办人可生成，二维码内容为签到 URL
+   */
+  async generateCheckInQrcode(
+    eventId: string,
+    userId: string,
+  ): Promise<{ qrcodeDataUrl: string; checkInUrl: string }> {
+    const event = await this.findById(eventId);
+    this.assertCreatorOrCoHost(event, userId);
+
+    // 签到链接指向前端签到页面
+    const baseUrl = this.frontendBaseUrl;
+    const checkInUrl = `${baseUrl}/events/${eventId}/check-in`;
+
+    // 生成二维码 Data URL（base64 PNG）
+    const qrcodeDataUrl = await QRCode.toDataURL(checkInUrl, {
+      width: 400,
+      margin: 2,
+      color: { dark: '#000000', light: '#FFFFFF' },
+    });
+
+    this.logger.log(`生成签到二维码：活动 ${eventId}`);
+    return { qrcodeDataUrl, checkInUrl };
+  }
+
+  /**
+   * 生成邀请海报
+   * 创建者或协办人可生成，包含活动信息和二维码
+   * 返回 base64 编码的海报图片（SVG 文本格式，供前端渲染）
+   */
+  async generateInvitePoster(
+    eventId: string,
+    userId: string,
+  ): Promise<{
+    qrcodeDataUrl: string;
+    shareUrl: string;
+    eventInfo: {
+      title: string;
+      startTime: Date;
+      endTime: Date;
+      locationName: string | null;
+      coverImage: string | null;
+    };
+  }> {
+    const event = await this.findById(eventId);
+    this.assertCreatorOrCoHost(event, userId);
+
+    // 生成分享链接和二维码
+    const baseUrl = this.frontendBaseUrl;
+    const shareUrl = `${baseUrl}/events/${eventId}`;
+
+    const qrcodeDataUrl = await QRCode.toDataURL(shareUrl, {
+      width: 300,
+      margin: 2,
+      color: { dark: '#000000', light: '#FFFFFF' },
+    });
+
+    this.logger.log(`生成邀请海报数据：活动 ${eventId}`);
+
+    // 返回海报所需数据，由前端负责渲染
+    return {
+      qrcodeDataUrl,
+      shareUrl,
+      eventInfo: {
+        title: event.title,
+        startTime: event.startTime,
+        endTime: event.endTime,
+        locationName: event.locationName,
+        coverImage: event.coverImage,
+      },
+    };
+  }
+
   // ==================== 协办人管理 ====================
 
   /**
@@ -410,6 +559,11 @@ export class EventService {
 
   // ==================== 私有方法 ====================
 
+  /** 获取前端基础 URL，用于生成分享链接和二维码 */
+  private get frontendBaseUrl(): string {
+    return process.env.FRONTEND_URL || 'http://localhost:5173';
+  }
+
   /**
    * 校验当前用户是否为活动创建者
    * @throws ForbiddenException 非创建者时抛出
@@ -430,7 +584,7 @@ export class EventService {
 
     const isCoHost = event.coHosts?.some((host) => host.userId === userId);
     if (!isCoHost) {
-      throw new ForbiddenException('无权查看协办人列表');
+      throw new ForbiddenException('无权操作此活动');
     }
   }
 

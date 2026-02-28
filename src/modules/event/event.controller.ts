@@ -22,7 +22,12 @@ import { JwtPayload } from '../auth/auth.dto.js';
 import { ApiResponseDto } from '../../common/dto/api-response.dto.js';
 import { EventService } from './event.service.js';
 import { EventEntity } from './event.entity.js';
-import { CreateEventDto, UpdateEventDto, QueryEventDto } from './event.dto.js';
+import {
+  CreateEventDto,
+  UpdateEventDto,
+  QueryEventDto,
+  MyEventsQueryDto,
+} from './event.dto.js';
 import { CreateTicketDto, UpdateTicketDto } from './ticket.dto.js';
 import { EventTicketEntity } from './event-ticket.entity.js';
 import { EventCoHostEntity } from './event-co-host.entity.js';
@@ -124,6 +129,114 @@ export class EventController {
   ): Promise<ApiResponseDto<{ items: EventEntity[]; total: number }>> {
     const result = await this.eventService.findAll(query);
     return ApiResponseDto.ok(result);
+  }
+
+  // ==================== 我的活动列表接口 ====================
+
+  /**
+   * 获取我创建的活动列表
+   * 需要登录，支持状态筛选和分页
+   */
+  @Get('my/created')
+  @ApiOperation({ summary: '获取我创建的活动列表' })
+  @ApiBearerAuth()
+  @UseGuards(JwtAuthGuard)
+  @ApiResponse({ status: 200, description: '查询成功' })
+  async getMyCreatedEvents(
+    @Query() query: MyEventsQueryDto,
+    @Req() req: { user: JwtPayload },
+  ): Promise<ApiResponseDto<{ items: EventEntity[]; total: number }>> {
+    const result = await this.eventService.getMyCreatedEvents(
+      req.user.sub,
+      query,
+    );
+    return ApiResponseDto.ok(result);
+  }
+
+  /**
+   * 获取我报名的活动列表
+   * 需要登录，支持状态筛选和分页
+   * 注意：依赖报名模块（Task 14），当前返回空列表
+   */
+  @Get('my/registered')
+  @ApiOperation({ summary: '获取我报名的活动列表' })
+  @ApiBearerAuth()
+  @UseGuards(JwtAuthGuard)
+  @ApiResponse({ status: 200, description: '查询成功' })
+  getMyRegisteredEvents(
+    @Query() query: MyEventsQueryDto,
+    @Req() req: { user: JwtPayload },
+  ): ApiResponseDto<{ items: EventEntity[]; total: number }> {
+    const result = this.eventService.getMyRegisteredEvents(req.user.sub, query);
+    return ApiResponseDto.ok(result);
+  }
+
+  // ==================== 分享与二维码接口 ====================
+
+  /**
+   * 生成活动分享链接
+   * 创建者或协办人可操作
+   */
+  @Post(':id/share-link')
+  @ApiOperation({ summary: '生成活动分享链接' })
+  @ApiBearerAuth()
+  @UseGuards(JwtAuthGuard)
+  @ApiParam({ name: 'id', description: '活动 ID' })
+  @ApiResponse({ status: 200, description: '生成成功' })
+  @ApiResponse({ status: 403, description: '无权操作' })
+  @ApiResponse({ status: 404, description: '活动不存在' })
+  async generateShareLink(
+    @Param('id') id: string,
+    @Req() req: { user: JwtPayload },
+  ): Promise<ApiResponseDto<{ shareUrl: string }>> {
+    const result = await this.eventService.generateShareLink(id, req.user.sub);
+    return ApiResponseDto.ok(result, '生成成功');
+  }
+
+  /**
+   * 生成签到二维码
+   * 创建者或协办人可操作，返回 base64 二维码图片
+   */
+  @Post(':id/check-in-qrcode')
+  @ApiOperation({ summary: '生成签到二维码' })
+  @ApiBearerAuth()
+  @UseGuards(JwtAuthGuard)
+  @ApiParam({ name: 'id', description: '活动 ID' })
+  @ApiResponse({ status: 200, description: '生成成功' })
+  @ApiResponse({ status: 403, description: '无权操作' })
+  @ApiResponse({ status: 404, description: '活动不存在' })
+  async generateCheckInQrcode(
+    @Param('id') id: string,
+    @Req() req: { user: JwtPayload },
+  ): Promise<ApiResponseDto<{ qrcodeDataUrl: string; checkInUrl: string }>> {
+    const result = await this.eventService.generateCheckInQrcode(
+      id,
+      req.user.sub,
+    );
+    return ApiResponseDto.ok(result, '生成成功');
+  }
+
+  /**
+   * 生成邀请海报数据
+   * 创建者或协办人可操作，返回海报所需的活动信息和二维码
+   */
+  @Post(':id/invite-poster')
+  @ApiOperation({ summary: '生成邀请海报数据' })
+  @ApiBearerAuth()
+  @UseGuards(JwtAuthGuard)
+  @ApiParam({ name: 'id', description: '活动 ID' })
+  @ApiResponse({ status: 200, description: '生成成功' })
+  @ApiResponse({ status: 403, description: '无权操作' })
+  @ApiResponse({ status: 404, description: '活动不存在' })
+  async generateInvitePoster(
+    @Param('id') id: string,
+    @Req() req: { user: JwtPayload },
+  ): Promise<ApiResponseDto<unknown>> {
+    const result = await this.eventService.generateInvitePoster(
+      id,
+      req.user.sub,
+    );
+    return ApiResponseDto.ok(result, '生成成功');
   }
 
   // ==================== 活动状态管理接口 ====================

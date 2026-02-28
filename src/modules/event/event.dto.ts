@@ -236,6 +236,35 @@ export class UpdateEventDto {
 }
 
 /**
+ * 我的活动查询 DTO
+ * 支持状态筛选和分页
+ */
+export class MyEventsQueryDto {
+  @ApiPropertyOptional({
+    description: '活动状态',
+    enum: ['draft', 'published', 'cancelled', 'completed'],
+  })
+  @IsOptional()
+  @IsIn(['draft', 'published', 'cancelled', 'completed'])
+  status?: string;
+
+  @ApiPropertyOptional({ description: '页码', default: 1 })
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  page?: number = 1;
+
+  @ApiPropertyOptional({ description: '每页数量', default: 20 })
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  @Max(100)
+  limit?: number = 20;
+}
+
+/**
  * 活动查询 DTO
  * 支持状态筛选、分类筛选和分页
  */
