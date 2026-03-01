@@ -57,7 +57,11 @@ export class CreateUserDto {
     required: false,
   })
   @IsOptional()
-  @IsUrl()
+  @IsUrl(
+    { require_protocol: true, protocols: ['http', 'https'] },
+    { message: '头像 URL 格式不正确，仅支持 http/https 协议' },
+  )
+  @Length(1, 512)
   avatar?: string;
 
   @ApiProperty({
@@ -89,7 +93,11 @@ export class UpdateUserDto {
     required: false,
   })
   @IsOptional()
-  @IsUrl()
+  @IsUrl(
+    { require_protocol: true, protocols: ['http', 'https'] },
+    { message: '头像 URL 格式不正确，仅支持 http/https 协议' },
+  )
+  @Length(1, 512)
   avatar?: string;
 
   @ApiProperty({
