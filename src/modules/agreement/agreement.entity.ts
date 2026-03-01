@@ -5,6 +5,7 @@ import {
   PrimaryColumn,
   BeforeInsert,
   Index,
+  Unique,
 } from 'typeorm';
 import { generateId } from '../../shared/utils/id-generator';
 
@@ -13,6 +14,7 @@ import { generateId } from '../../shared/utils/id-generator';
  * 存储各类协议的版本化内容，不可修改（新版本创建新记录）
  */
 @Index('IDX_agreements_type_date', ['type', 'effectiveDate'])
+@Unique('UQ_agreements_type_version', ['type', 'version'])
 @Entity('agreements')
 export class AgreementEntity {
   @PrimaryColumn({ type: 'varchar', length: 36, comment: 'UUIDv7 主键' })
