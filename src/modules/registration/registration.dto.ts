@@ -4,11 +4,12 @@ import {
   IsEmail,
   IsIn,
   IsInt,
+  IsBoolean,
   Min,
   Max,
   IsObject,
 } from 'class-validator';
-import { ApiPropertyOptional } from '@nestjs/swagger';
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
 
 /**
@@ -66,4 +67,28 @@ export class QueryRegistrationDto {
   @Min(1)
   @Max(100)
   limit?: number = 20;
+}
+
+/**
+ * 用户确认出席 DTO
+ */
+export class ConfirmAttendanceDto {
+  @ApiProperty({
+    description: '是否确认参加',
+    example: true,
+  })
+  @IsBoolean()
+  confirmed: boolean;
+}
+
+/**
+ * 签到 DTO
+ */
+export class CheckInDto {
+  @ApiProperty({
+    description: '报名记录 ID',
+    example: '019ca63a-0000-7000-0000-000000000001',
+  })
+  @IsString()
+  registrationId: string;
 }

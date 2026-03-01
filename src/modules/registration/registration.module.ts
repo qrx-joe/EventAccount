@@ -5,11 +5,12 @@ import { EventRegistrationFormEntity } from './event-registration-form.entity.js
 import { EventEntity } from '../event/event.entity.js';
 import { EventTicketEntity } from '../event/event-ticket.entity.js';
 import { RegistrationController } from './registration.controller.js';
+import { RegistrationManageController } from './registration-manage.controller.js';
 import { RegistrationService } from './registration.service.js';
 
 /**
  * 报名模块
- * 处理活动报名、取消报名和报名问卷配置
+ * 处理活动报名、取消报名、审核、签到和报名问卷配置
  * 导出 RegistrationService 供其他模块使用
  */
 @Module({
@@ -21,7 +22,7 @@ import { RegistrationService } from './registration.service.js';
       EventTicketEntity,
     ]),
   ],
-  controllers: [RegistrationController],
+  controllers: [RegistrationController, RegistrationManageController],
   providers: [RegistrationService],
   exports: [RegistrationService],
 })

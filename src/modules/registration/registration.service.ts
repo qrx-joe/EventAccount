@@ -6,12 +6,16 @@ import {
   ConflictException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, DataSource } from 'typeorm';
+import { Repository, DataSource, FindOptionsWhere } from 'typeorm';
+import * as QRCode from 'qrcode';
 import { RegistrationEntity } from './registration.entity.js';
 import { EventRegistrationFormEntity } from './event-registration-form.entity.js';
 import { EventEntity } from '../event/event.entity.js';
 import { EventTicketEntity } from '../event/event-ticket.entity.js';
-import { CreateRegistrationDto } from './registration.dto.js';
+import {
+  CreateRegistrationDto,
+  QueryRegistrationDto,
+} from './registration.dto.js';
 import { SetRegistrationFormDto } from './registration-form.dto.js';
 
 /**
@@ -246,6 +250,295 @@ export class RegistrationService {
 
       return manager.save(EventRegistrationFormEntity, fields);
     });
+  }
+
+  /**
+   * 审核通过报名
+   * 仅活动创建者可操作，审核后自动处理门票计数
+   */
+  async approve(
+    registrationId: string,
+    userId: string,
+  ): Promise<RegistrationEntity> {
+    const registration = await this.registrationRepository.findOne({
+      where: { id: registrationId },
+    });
+    if (!registration) {
+      throw new NotFoundException('报名记录不存在');
+    }
+
+    // 仅 pending 或 waitlisted 可审核通过
+    if (
+      registration.status !== 'pending' &&
+      registration.status !== 'waitlisted'
+    ) {
+      throw new BadRequestException('当前状态无法审核通过');
+    }
+
+    // 验证操作者是活动创建者
+    const event = await this.eventRepository.findOne({
+      where: { id: registration.eventId },
+    });
+    if (!event) {
+      throw new NotFoundException('活动不存在');
+    }
+    if (event.creatorId !== userId) {
+      throw new ForbiddenException('无权操作此活动');
+    }
+
+    return this.dataSource.transaction(async (manager) => {
+      registration.status = 'approved';
+      const saved = await manager.save(RegistrationEntity, registration);
+
+      // 审核通过时更新门票已售数量
+      if (registration.ticketId) {
+        await manager.increment(
+          EventTicketEntity,
+          { id: registration.ticketId },
+          'soldCount',
+          1,
+        );
+      }
+
+      return saved;
+    });
+  }
+
+  /**
+   * 审核拒绝报名
+   * 仅活动创建者可操作
+   */
+  async reject(
+    registrationId: string,
+    userId: string,
+  ): Promise<RegistrationEntity> {
+    const registration = await this.registrationRepository.findOne({
+      where: { id: registrationId },
+    });
+    if (!registration) {
+      throw new NotFoundException('报名记录不存在');
+    }
+
+    if (
+      registration.status !== 'pending' &&
+      registration.status !== 'waitlisted'
+    ) {
+      throw new BadRequestException('当前状态无法拒绝');
+    }
+
+    const event = await this.eventRepository.findOne({
+      where: { id: registration.eventId },
+    });
+    if (!event) {
+      throw new NotFoundException('活动不存在');
+    }
+    if (event.creatorId !== userId) {
+      throw new ForbiddenException('无权操作此活动');
+    }
+
+    registration.status = 'rejected';
+    return this.registrationRepository.save(registration);
+  }
+
+  /**
+   * 扫码签到
+   * 通过 registrationId 签到，仅活动创建者可操作
+   * 报名状态必须为 approved 才能签到
+   */
+  async checkIn(
+    eventId: string,
+    registrationId: string,
+    userId: string,
+  ): Promise<RegistrationEntity> {
+    const event = await this.eventRepository.findOne({
+      where: { id: eventId },
+    });
+    if (!event) {
+      throw new NotFoundException('活动不存在');
+    }
+    if (event.creatorId !== userId) {
+      throw new ForbiddenException('无权操作此活动');
+    }
+
+    const registration = await this.registrationRepository.findOne({
+      where: { id: registrationId, eventId },
+    });
+    if (!registration) {
+      throw new NotFoundException('报名记录不存在');
+    }
+
+    if (registration.status !== 'approved') {
+      throw new BadRequestException('报名未通过审核，无法签到');
+    }
+
+    if (registration.checkInStatus === 'checked_in') {
+      throw new ConflictException('已签到，请勿重复签到');
+    }
+
+    registration.checkInStatus = 'checked_in';
+    registration.checkedInAt = new Date();
+    return this.registrationRepository.save(registration);
+  }
+
+  /**
+   * 获取报名列表
+   * 仅活动创建者可查看，支持状态筛选和分页
+   */
+  async getRegistrations(
+    eventId: string,
+    userId: string,
+    query: QueryRegistrationDto,
+  ): Promise<{ items: RegistrationEntity[]; total: number }> {
+    const event = await this.eventRepository.findOne({
+      where: { id: eventId },
+    });
+    if (!event) {
+      throw new NotFoundException('活动不存在');
+    }
+    if (event.creatorId !== userId) {
+      throw new ForbiddenException('无权查看此活动的报名列表');
+    }
+
+    const where: FindOptionsWhere<RegistrationEntity> = { eventId };
+    if (query.status) {
+      where.status = query.status;
+    }
+
+    const page = query.page ?? 1;
+    const limit = query.limit ?? 20;
+
+    const [items, total] = await this.registrationRepository.findAndCount({
+      where,
+      order: { createdAt: 'DESC' },
+      skip: (page - 1) * limit,
+      take: limit,
+      relations: ['user'],
+    });
+
+    return { items, total };
+  }
+
+  /**
+   * 导出报名列表为 CSV
+   * 仅活动创建者可操作
+   */
+  async exportRegistrations(eventId: string, userId: string): Promise<string> {
+    const event = await this.eventRepository.findOne({
+      where: { id: eventId },
+    });
+    if (!event) {
+      throw new NotFoundException('活动不存在');
+    }
+    if (event.creatorId !== userId) {
+      throw new ForbiddenException('无权导出此活动的报名数据');
+    }
+
+    const registrations = await this.registrationRepository.find({
+      where: { eventId },
+      order: { createdAt: 'ASC' },
+      relations: ['user'],
+    });
+
+    // 构建 CSV 内容
+    const headers = [
+      '报名ID',
+      '用户ID',
+      '用户名',
+      '邮箱',
+      '报名状态',
+      '签到状态',
+      '签到时间',
+      '报名时间',
+    ];
+    const rows = registrations.map((reg) => [
+      reg.id,
+      reg.userId,
+      reg.user?.nickname || '',
+      reg.email || '',
+      reg.status,
+      reg.checkInStatus,
+      reg.checkedInAt?.toISOString() || '',
+      reg.createdAt.toISOString(),
+    ]);
+
+    // 添加 BOM 头以支持中文 Excel 打开
+    const csvContent =
+      '\uFEFF' +
+      headers.join(',') +
+      '\n' +
+      rows
+        .map((row) =>
+          row.map((cell) => `"${String(cell).replace(/"/g, '""')}"`).join(','),
+        )
+        .join('\n');
+
+    return csvContent;
+  }
+
+  /**
+   * 获取报名确认信封数据
+   * 包含活动信息、报名状态、签到二维码
+   * 公开接口，通过 registrationId 查询
+   */
+  async getConfirmation(registrationId: string): Promise<{
+    registration: RegistrationEntity;
+    event: EventEntity;
+    qrCode: string;
+  }> {
+    const registration = await this.registrationRepository.findOne({
+      where: { id: registrationId },
+    });
+    if (!registration) {
+      throw new NotFoundException('报名记录不存在');
+    }
+
+    const event = await this.eventRepository.findOne({
+      where: { id: registration.eventId },
+    });
+    if (!event) {
+      throw new NotFoundException('活动不存在');
+    }
+
+    // 生成签到二维码（内容为 registrationId，用于现场扫码签到）
+    const qrCode = await QRCode.toDataURL(registrationId, {
+      width: 300,
+      margin: 2,
+    });
+
+    return { registration, event, qrCode };
+  }
+
+  /**
+   * 用户确认是否前来参加活动
+   * 仅报名者本人可操作，仅 approved 状态可确认
+   */
+  async confirmAttendance(
+    registrationId: string,
+    userId: string,
+    confirmed: boolean,
+  ): Promise<RegistrationEntity> {
+    const registration = await this.registrationRepository.findOne({
+      where: { id: registrationId },
+    });
+    if (!registration) {
+      throw new NotFoundException('报名记录不存在');
+    }
+
+    if (registration.userId !== userId) {
+      throw new ForbiddenException('无权操作此报名记录');
+    }
+
+    if (registration.status !== 'approved') {
+      throw new BadRequestException('仅已通过的报名可确认出席');
+    }
+
+    if (!confirmed) {
+      // 用户确认不参加，等同于取消报名
+      return this.cancel(registration.eventId, userId);
+    }
+
+    // 确认参加，无需额外操作，返回当前记录
+    return registration;
   }
 
   /**
