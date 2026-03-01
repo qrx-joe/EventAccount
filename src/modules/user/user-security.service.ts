@@ -4,9 +4,10 @@ import {
   BadRequestException,
   Logger,
 } from '@nestjs/common';
+import { DataSource, QueryFailedError } from 'typeorm';
 import * as bcrypt from 'bcrypt';
-import { QueryFailedError } from 'typeorm';
 import { PG_UNIQUE_VIOLATION } from '../../common/constants/postgres';
+import { UserEntity } from './user.entity';
 import { UserSelfDto } from './user.dto';
 import { UserService } from './user.service';
 import { VerificationService } from '../verification/verification.service';
@@ -15,7 +16,7 @@ import { VerificationCodeType } from '../verification/verification.dto';
 /**
  * 用户安全服务
  * 负责密码/手机号/邮箱等安全相关变更
- * 验证码校验在此层完成，保证"先查冲突 → 再消耗验证码 → 再写入"的原子顺序
+ * 验证码校验在此层完成；换绑操作使用事务保证冲突检查与写入的原子性
  */
 @Injectable()
 export class UserSecurityService {
@@ -24,6 +25,7 @@ export class UserSecurityService {
   constructor(
     private readonly userService: UserService,
     private readonly verificationService: VerificationService,
+    private readonly dataSource: DataSource,
   ) {}
 
   /** 修改密码（已登录状态，需验证旧密码） */
@@ -52,20 +54,15 @@ export class UserSecurityService {
 
   /**
    * 换绑手机号
-   * 流程：先查冲突 → 再消耗验证码 → 再写入（避免验证码被浪费）
+   * 流程：先消耗验证码 → 事务内检查冲突 + 写入（消除 TOCTOU 窗口）
+   * 唯一约束作为最终兜底
    */
   async changePhone(
     userId: string,
     newPhone: string,
     smsCode: string,
   ): Promise<UserSelfDto> {
-    // 1. 先查冲突（不消耗验证码）
-    const existing = await this.userService.findByPhone(newPhone);
-    if (existing && existing.id !== userId) {
-      throw new ConflictException('该手机号已被其他账号使用');
-    }
-
-    // 2. 冲突检查通过后再消耗验证码
+    // 1. 消耗验证码（Redis 操作，不参与 DB 事务）
     const valid = await this.verificationService.verifyCode(
       newPhone,
       VerificationCodeType.BIND_PHONE,
@@ -75,9 +72,17 @@ export class UserSecurityService {
       throw new BadRequestException('验证码无效或已过期');
     }
 
-    // 3. 写入，兜底捕获数据库唯一约束冲突
+    // 2. 事务内执行冲突检查 + 写入，避免 TOCTOU 竞态
     try {
-      await this.userService.updateBasicFields(userId, { phone: newPhone });
+      await this.dataSource.transaction(async (manager) => {
+        const existing = await manager.findOne(UserEntity, {
+          where: { phone: newPhone },
+        });
+        if (existing && existing.id !== userId) {
+          throw new ConflictException('该手机号已被其他账号使用');
+        }
+        await manager.update(UserEntity, userId, { phone: newPhone });
+      });
     } catch (err) {
       this.handleUniqueViolation(err, '该手机号已被其他账号使用');
     }
@@ -88,7 +93,7 @@ export class UserSecurityService {
 
   /**
    * 换绑邮箱
-   * 流程：先查冲突 → 再消耗验证码 → 再写入
+   * 流程：先消耗验证码 → 事务内检查冲突 + 写入
    */
   async changeEmail(
     userId: string,
@@ -97,13 +102,7 @@ export class UserSecurityService {
   ): Promise<UserSelfDto> {
     const normalized = this.userService.normalizeEmail(newEmail);
 
-    // 1. 先查冲突
-    const existing = await this.userService.findByEmail(normalized);
-    if (existing && existing.id !== userId) {
-      throw new ConflictException('该邮箱已被其他账号使用');
-    }
-
-    // 2. 消耗验证码
+    // 1. 消耗验证码
     const valid = await this.verificationService.verifyCode(
       normalized,
       VerificationCodeType.BIND_EMAIL,
@@ -113,10 +112,16 @@ export class UserSecurityService {
       throw new BadRequestException('验证码无效或已过期');
     }
 
-    // 3. 写入 + 唯一约束兜底
+    // 2. 事务内执行冲突检查 + 写入
     try {
-      await this.userService.updateBasicFields(userId, {
-        email: normalized,
+      await this.dataSource.transaction(async (manager) => {
+        const existing = await manager.findOne(UserEntity, {
+          where: { email: normalized },
+        });
+        if (existing && existing.id !== userId) {
+          throw new ConflictException('该邮箱已被其他账号使用');
+        }
+        await manager.update(UserEntity, userId, { email: normalized });
       });
     } catch (err) {
       this.handleUniqueViolation(err, '该邮箱已被其他账号使用');

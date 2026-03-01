@@ -1,12 +1,4 @@
-import {
-  Controller,
-  Get,
-  Put,
-  Body,
-  Req,
-  UseGuards,
-  BadRequestException,
-} from '@nestjs/common';
+import { Controller, Get, Put, Body, Req, UseGuards } from '@nestjs/common';
 import {
   ApiTags,
   ApiOperation,
@@ -62,9 +54,6 @@ export class UserAccountController {
     @Req() req: { user: JwtPayload },
     @Body() dto: ChangePasswordDto,
   ): Promise<ApiResponseDto<null>> {
-    if (dto.newPassword !== dto.confirmPassword) {
-      throw new BadRequestException('两次输入的密码不一致');
-    }
     await this.userSecurityService.changePassword(
       req.user.sub,
       dto.oldPassword,

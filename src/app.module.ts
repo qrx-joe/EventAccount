@@ -7,16 +7,18 @@ import databaseConfig from './config/database.config';
 import smsConfig from './config/sms.config';
 import emailConfig from './config/email.config';
 import redisConfig from './config/redis.config';
+import ossConfig from './config/oss.config';
 import { UserModule } from './modules/user/user.module';
 import { AuthModule } from './modules/auth/auth.module';
 import { VerificationModule } from './modules/verification/verification.module';
 import { AgreementModule } from './modules/agreement/agreement.module';
+import { UploadModule } from './modules/upload/upload.module';
 @Module({
   imports: [
     // 全局配置模块，加载 .env 文件（环境专属文件优先，后加载的覆盖先加载的）
     ConfigModule.forRoot({
       isGlobal: true,
-      load: [databaseConfig, smsConfig, emailConfig, redisConfig],
+      load: [databaseConfig, smsConfig, emailConfig, redisConfig, ossConfig],
       validationSchema: Joi.object({
         // 数据库
         DB_HOST: Joi.string().default('localhost'),
@@ -72,6 +74,7 @@ import { AgreementModule } from './modules/agreement/agreement.module';
     AuthModule,
     VerificationModule,
     AgreementModule,
+    UploadModule,
   ],
 })
 export class AppModule {}
