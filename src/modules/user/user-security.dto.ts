@@ -29,7 +29,7 @@ export class ChangePhoneDto {
 
   @ApiProperty({ description: '短信验证码（6 位）', example: '123456' })
   @IsString()
-  @Length(6, 6)
+  @Matches(/^\d{6}$/, { message: '验证码为 6 位数字' })
   smsCode: string;
 }
 
@@ -44,6 +44,6 @@ export class ChangeEmailDto {
 
   @ApiProperty({ description: '邮箱验证码（6 位）', example: '123456' })
   @IsString()
-  @Length(6, 6)
+  @Matches(/^\d{6}$/, { message: '验证码为 6 位数字' })
   emailCode: string;
 }

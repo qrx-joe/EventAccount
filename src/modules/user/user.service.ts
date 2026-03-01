@@ -7,6 +7,7 @@ import {
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, QueryFailedError } from 'typeorm';
 import * as bcrypt from 'bcrypt';
+import { PG_UNIQUE_VIOLATION } from '../../common/constants/postgres';
 import { UserEntity } from './user.entity';
 import {
   CreateUserDto,
@@ -21,9 +22,6 @@ import {
 
 /** bcrypt 哈希轮数（12 轮 ≈ 300ms，安全性与性能的平衡点） */
 const BCRYPT_SALT_ROUNDS = 12;
-
-/** PostgreSQL 唯一约束冲突错误码 */
-const PG_UNIQUE_VIOLATION = '23505';
 
 /**
  * 用户服务

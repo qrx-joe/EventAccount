@@ -6,13 +6,11 @@ import {
 } from '@nestjs/common';
 import * as bcrypt from 'bcrypt';
 import { QueryFailedError } from 'typeorm';
+import { PG_UNIQUE_VIOLATION } from '../../common/constants/postgres';
 import { UserSelfDto } from './user.dto';
 import { UserService } from './user.service';
 import { VerificationService } from '../verification/verification.service';
 import { VerificationCodeType } from '../verification/verification.dto';
-
-/** PostgreSQL 唯一约束冲突错误码 */
-const PG_UNIQUE_VIOLATION = '23505';
 
 /**
  * 用户安全服务
@@ -132,8 +130,7 @@ export class UserSecurityService {
   private handleUniqueViolation(err: unknown, message: string): never {
     if (
       err instanceof QueryFailedError &&
-      (err as QueryFailedError & { code?: string }).code ===
-        PG_UNIQUE_VIOLATION
+      (err as QueryFailedError & { code?: string }).code === PG_UNIQUE_VIOLATION
     ) {
       throw new ConflictException(message);
     }

@@ -8,7 +8,6 @@ import {
   seedVerificationCode,
 } from './e2e-helpers';
 import { VerificationCodeType } from '../src/modules/verification/verification.dto';
-import { parseApiResponse } from './api-response-test-utils';
 
 function getHttpServer(app: INestApplication): App {
   return app.getHttpServer() as unknown as App;
@@ -89,10 +88,7 @@ describe('S2: UUID 参数格式校验 (e2e)', () => {
       'UUID测试用户2',
     );
 
-    await agent
-      .put('/api/users/xxx')
-      .send({ nickname: '新昵称' })
-      .expect(400);
+    await agent.put('/api/users/xxx').send({ nickname: '新昵称' }).expect(400);
   });
 
   it('无效 UUID 删除用户返回 400（需登录）', async () => {
