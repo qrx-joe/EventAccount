@@ -119,20 +119,30 @@ export class AgreementService implements OnModuleInit {
         content:
           '# 隐私政策\n\n本政策说明 T3 Program 如何收集、使用和保护您的个人信息。\n\n## 1. 信息收集\n\n我们收集您注册时提供的手机号、昵称等基本信息。\n\n## 2. 信息使用\n\n仅用于平台服务运营和用户身份验证。\n\n## 3. 信息安全\n\n采用加密存储和传输，定期安全审计。',
       },
+      {
+        type: 'payment-agreement',
+        title: '支付服务协议',
+        version: '1.0.0',
+        content:
+          '# 支付服务协议\n\n本协议用于说明平台内支付相关服务规则。\n\n## 1. 支付说明\n\n平台支付由合规第三方通道处理，订单信息以平台记录为准。\n\n## 2. 退款说明\n\n退款规则以活动组织方公示条款与法律法规为准。\n\n## 3. 风险提示\n\n请在支付前确认活动信息与费用细节。',
+      },
     ];
 
     await this.agreementRepo.manager.transaction(async (manager) => {
       for (const seed of seeds) {
-        const exists = await manager.findOne(AgreementEntity, {
-          where: { type: seed.type, version: seed.version },
-        });
-        if (!exists) {
-          const entity = manager.create(AgreementEntity, {
+        const result = await manager
+          .createQueryBuilder()
+          .insert()
+          .into(AgreementEntity)
+          .values({
             id: generateId(),
             ...seed,
             effectiveDate: new Date(),
-          });
-          await manager.save(entity);
+          })
+          .orIgnore()
+          .execute();
+
+        if (result.identifiers.length > 0) {
           this.logger.log(`Seed 协议: ${seed.title} v${seed.version}`);
         }
       }

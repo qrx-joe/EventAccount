@@ -6,6 +6,7 @@ import { UserModule } from '../user/user.module';
 import { VerificationModule } from '../verification/verification.module';
 import { AgreementModule } from '../agreement/agreement.module';
 import { AuthService } from './auth.service';
+import { AuthResetService } from './auth-reset.service';
 import { AuthController } from './auth.controller';
 import { JwtStrategy } from './strategies/jwt.strategy';
 import { JwtAuthGuard } from './guards/jwt-auth.guard';
@@ -35,7 +36,7 @@ import { JwtAuthGuard } from './guards/jwt-auth.guard';
     }),
   ],
   controllers: [AuthController],
-  providers: [AuthService, JwtStrategy, JwtAuthGuard],
+  providers: [AuthService, AuthResetService, JwtStrategy, JwtAuthGuard],
   exports: [JwtAuthGuard],
 })
 export class AuthModule {}

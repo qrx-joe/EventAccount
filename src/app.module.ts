@@ -54,6 +54,8 @@ import { AgreementModule } from './modules/agreement/agreement.module';
         database: config.get<string>('database.database'),
         entities: [__dirname + '/**/*.entity{.ts,.js}'],
         synchronize: config.get<string>('NODE_ENV') !== 'production', // 生产环境禁止自动同步
+        migrationsRun: config.get<string>('NODE_ENV') === 'production', // 仅生产环境自动执行 migration
+        migrations: [__dirname + '/migrations/*{.ts,.js}'],
         logging: config.get<string>('NODE_ENV') === 'development',
       }),
     }),
