@@ -7,6 +7,7 @@ import { EventTicketEntity } from '../event/event-ticket.entity.js';
 import { RegistrationController } from './registration.controller.js';
 import { RegistrationManageController } from './registration-manage.controller.js';
 import { RegistrationService } from './registration.service.js';
+import { NotificationModule } from '../notification/notification.module.js';
 
 /**
  * 报名模块
@@ -21,6 +22,7 @@ import { RegistrationService } from './registration.service.js';
       EventEntity,
       EventTicketEntity,
     ]),
+    NotificationModule,
   ],
   controllers: [RegistrationController, RegistrationManageController],
   providers: [RegistrationService],

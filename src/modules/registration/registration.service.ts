@@ -17,6 +17,7 @@ import {
   QueryRegistrationDto,
 } from './registration.dto.js';
 import { SetRegistrationFormDto } from './registration-form.dto.js';
+import { NotificationService } from '../notification/notification.service.js';
 
 /**
  * 报名服务
@@ -34,6 +35,7 @@ export class RegistrationService {
     @InjectRepository(EventTicketEntity)
     private readonly ticketRepository: Repository<EventTicketEntity>,
     private readonly dataSource: DataSource,
+    private readonly notificationService: NotificationService,
   ) {}
 
   /**
@@ -109,9 +111,9 @@ export class RegistrationService {
     }
 
     // 使用事务处理报名和门票计数
-    return this.dataSource.transaction(async (manager) => {
+    const registration = await this.dataSource.transaction(async (manager) => {
       // 如果之前取消过，复用记录
-      let registration: RegistrationEntity;
+      let reg: RegistrationEntity;
       if (existing && existing.status === 'cancelled') {
         existing.status = status;
         existing.ticketId = dto.ticketId || null;
@@ -119,9 +121,9 @@ export class RegistrationService {
         existing.formData = dto.formData || null;
         existing.checkInStatus = 'not_checked_in';
         existing.checkedInAt = null;
-        registration = await manager.save(RegistrationEntity, existing);
+        reg = await manager.save(RegistrationEntity, existing);
       } else {
-        registration = manager.create(RegistrationEntity, {
+        reg = manager.create(RegistrationEntity, {
           eventId,
           userId,
           ticketId: dto.ticketId || null,
@@ -129,7 +131,7 @@ export class RegistrationService {
           email: dto.email || null,
           formData: dto.formData || null,
         });
-        registration = await manager.save(RegistrationEntity, registration);
+        reg = await manager.save(RegistrationEntity, reg);
       }
 
       // 更新门票已售数量
@@ -142,8 +144,24 @@ export class RegistrationService {
         );
       }
 
-      return registration;
+      return reg;
     });
+
+    // 报名成功后发送确认通知（事务外异步执行，不影响报名结果）
+    if (status === 'approved') {
+      this.notificationService
+        .sendRegistrationConfirmation(
+          userId,
+          registration.id,
+          event.title,
+          dto.email,
+        )
+        .catch(() => {
+          // 通知发送失败不影响报名结果
+        });
+    }
+
+    return registration;
   }
 
   /**
