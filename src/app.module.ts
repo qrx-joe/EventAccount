@@ -17,6 +17,7 @@ import { TagModule } from './modules/tag/tag.module';
 import { CategoryModule } from './modules/category/category.module';
 import { EventModule } from './modules/event/event.module';
 import { EventThemeModule } from './modules/event-theme/event-theme.module';
+import { RegistrationModule } from './modules/registration/registration.module';
 @Module({
   imports: [
     // 全局配置模块，加载 .env 文件（环境专属文件优先，后加载的覆盖先加载的）
@@ -74,6 +75,7 @@ import { EventThemeModule } from './modules/event-theme/event-theme.module';
     CategoryModule,
     EventModule,
     EventThemeModule,
+    RegistrationModule,
   ],
 })
 export class AppModule {}
