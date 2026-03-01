@@ -34,7 +34,9 @@
 │      ├── ChangeEmailDialog     ← 换绑邮箱弹窗            │
 │      └── DeleteAccountDialog   ← 注销账号弹窗            │
 │                                                         │
+│  components/AvatarUpload.vue   ← 头像上传组件            │
 │  lib/users.ts                  ← API 调用层              │
+│  lib/upload.ts                 ← 文件上传 API            │
 │  composables/useSmsCountdown   ← 短信验证码倒计时        │
 │  composables/useEmailCountdown ← 邮箱验证码倒计时        │
 │  stores/auth.ts                ← 用户状态（Pinia）       │
@@ -62,12 +64,17 @@
 
 ```
 ProfileSection.vue
-  │  onMounted: auth.user ?? auth.fetchUser() → 填充表单
+  │  onMounted: auth.user ?? auth.fetchUser() → 填充表单（昵称/签名）
   │
-  │  用户修改字段 → zod 实时校验
-  │  头像 URL → 防抖 600ms → <img> 预览（含加载失败处理）
+  │  ┌── 头像上传（独立于表单，即时保存）
+  │  │   AvatarUpload.vue
+  │  │     点击头像 → 选择文件 → 本地预览(createObjectURL)
+  │  │     → POST /upload/image (FormData)
+  │  │     → 上传成功 → emit URL → 即时调用 PUT /users/:id { avatar }
+  │  │
+  │  └── 昵称/签名表单 → zod 实时校验
   │
-  ▼  提交
+  ▼  提交（仅昵称/签名）
 lib/users.ts:updateUser(userId, payload)
   │  PUT /users/{userId}
   ▼

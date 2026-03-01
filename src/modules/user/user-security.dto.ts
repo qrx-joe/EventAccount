@@ -1,6 +1,7 @@
 import { IsEmail, IsString, Length, Matches } from 'class-validator';
 import { ApiProperty } from '@nestjs/swagger';
 import { Transform } from 'class-transformer';
+import { Match } from '../../common/decorators/match.decorator';
 
 /** 修改密码请求体（已登录状态） */
 export class ChangePasswordDto {
@@ -17,6 +18,7 @@ export class ChangePasswordDto {
   @ApiProperty({ description: '确认新密码', example: 'newpass456' })
   @IsString()
   @Length(6, 128)
+  @Match('newPassword', { message: '两次输入的密码不一致' })
   confirmPassword: string;
 }
 
