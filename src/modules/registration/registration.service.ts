@@ -229,6 +229,24 @@ export class RegistrationService {
   }
 
   /**
+   * 获取我的报名记录
+   * 查询当前用户在指定活动的报名状态
+   */
+  async getMyRegistration(
+    eventId: string,
+    userId: string,
+  ): Promise<RegistrationEntity> {
+    const registration = await this.registrationRepository.findOne({
+      where: { eventId, userId },
+      relations: ['ticket'],
+    });
+    if (!registration) {
+      throw new NotFoundException('未找到报名记录');
+    }
+    return registration;
+  }
+
+  /**
    * 设置报名问卷配置
    * 批量覆盖：先删除旧字段，再插入新字段
    * 仅活动创建者可操作
@@ -577,8 +595,8 @@ export class RegistrationService {
 
     if (!formData) {
       throw new BadRequestException(
-        `请填写报名问卷：${formFields.map((f) => f.label).join('、')}`,
-      );
+        '请填写报名问卷',
+      )
     }
 
     const missingFields = formFields.filter((field) => {

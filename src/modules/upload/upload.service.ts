@@ -34,7 +34,7 @@ export class UploadService {
     );
     const bucket = this.configService.get<string>('oss.bucket', '');
     const region = this.configService.get<string>('oss.region', '');
-    this.pathSuffix = this.configService.get<string>('oss.pathSuffix', '');
+    this.pathSuffix = this.configService.get<string>('oss.customDomain', '');
 
     // 配置缺失时仅警告，不阻止应用启动
     if (!accessKeyId || !accessKeySecret || !bucket || !region) {

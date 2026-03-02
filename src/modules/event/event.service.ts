@@ -242,6 +242,8 @@ export class EventService {
 
     const qb = this.eventRepository
       .createQueryBuilder('event')
+      .leftJoin('event.creator', 'creator')
+      .addSelect(['creator.id', 'creator.nickname', 'creator.avatar'])
       .leftJoinAndSelect('event.category', 'category')
       .leftJoinAndSelect('event.tags', 'tags')
       .where('event.creatorId = :userId', { userId });
@@ -250,7 +252,7 @@ export class EventService {
       qb.andWhere('event.status = :status', { status });
     }
 
-    qb.orderBy('event.createdAt', 'DESC')
+    qb.orderBy('event.startTime', 'ASC')
       .skip((page - 1) * limit)
       .take(limit);
 

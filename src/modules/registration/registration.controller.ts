@@ -107,6 +107,28 @@ export class RegistrationController {
   }
 
   /**
+   * 获取我的报名记录
+   * 需要登录，仅查询当前用户的报名状态
+   */
+  @Get('my-registration')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: '获取我的报名记录' })
+  @ApiParam({ name: 'eventId', description: '活动 ID' })
+  @ApiResponse({ status: 200, description: '查询成功' })
+  @ApiResponse({ status: 404, description: '未找到报名记录' })
+  async getMyRegistration(
+    @Param('eventId') eventId: string,
+    @Request() req: { user: JwtPayload },
+  ): Promise<ApiResponseDto<RegistrationEntity>> {
+    const registration = await this.registrationService.getMyRegistration(
+      eventId,
+      req.user.sub,
+    );
+    return ApiResponseDto.ok(registration);
+  }
+
+  /**
    * 设置报名问卷配置
    * 需要登录，仅活动创建者可操作
    */
