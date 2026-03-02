@@ -8,6 +8,7 @@ import {
 } from 'class-validator';
 import { ApiProperty } from '@nestjs/swagger';
 import { Transform } from 'class-transformer';
+import { UserRole } from './user.entity';
 
 /** 创建用户请求体 */
 export class CreateUserDto {
@@ -133,6 +134,9 @@ export class UserSelfDto {
 
   @ApiProperty({ description: '个性签名', example: '这个人很懒' })
   bio: string | null;
+
+  @ApiProperty({ description: '角色', enum: UserRole, example: UserRole.USER })
+  role: UserRole;
 
   @ApiProperty({ description: '创建时间' })
   createdAt: Date;
