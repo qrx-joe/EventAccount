@@ -2,6 +2,7 @@ import {
   Injectable,
   UnauthorizedException,
   BadRequestException,
+  ForbiddenException,
   Logger,
 } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
@@ -70,6 +71,7 @@ export class AuthService {
       throw new UnauthorizedException('手机号或密码错误');
     }
 
+    this.checkActive(user);
     this.logger.log(`用户密码登录成功: ${user.id}`);
     return { token: this.signToken(user) };
   }
@@ -90,6 +92,7 @@ export class AuthService {
       throw new BadRequestException('该手机号尚未注册，请先注册');
     }
 
+    this.checkActive(user);
     this.logger.log(`用户短信登录成功: ${user.id}`);
     return { token: this.signToken(user) };
   }
@@ -110,13 +113,21 @@ export class AuthService {
       throw new BadRequestException('该邮箱尚未绑定，请先注册并绑定邮箱');
     }
 
+    this.checkActive(user);
     this.logger.log(`用户邮箱登录成功: ${user.id}`);
     return { token: this.signToken(user) };
   }
 
-  /** 签发 JWT（只包含用户 ID） */
+  /** 签发 JWT（包含用户 ID 和角色） */
   private signToken(user: UserEntity): string {
-    const payload: JwtPayload = { sub: user.id };
+    const payload: JwtPayload = { sub: user.id, role: user.role };
     return this.jwtService.sign(payload);
+  }
+
+  /** 检查账号是否已被禁用 */
+  private checkActive(user: UserEntity): void {
+    if (!user.isActive) {
+      throw new ForbiddenException('账号已被禁用，请联系管理员');
+    }
   }
 }

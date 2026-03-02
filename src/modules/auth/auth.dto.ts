@@ -8,10 +8,12 @@ import {
 import { ApiProperty } from '@nestjs/swagger';
 import { Transform } from 'class-transformer';
 import { PHONE_REGEX } from '../../common/constants/phone';
+import { UserRole } from '../user/user.entity';
 
-/** JWT payload 结构（只保留用户 ID，避免易变字段导致 token 过期前信息不一致） */
+/** JWT payload 结构（包含用户 ID 和角色，角色变更需重新登录获取新 token） */
 export interface JwtPayload {
   sub: string;
+  role: UserRole;
 }
 
 /** 注册请求体 */

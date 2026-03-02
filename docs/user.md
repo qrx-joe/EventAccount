@@ -12,10 +12,13 @@
 |------|------|
 | `src/modules/user/user.controller.ts` | 用户管理路由：公开资料查询、列表、单查、更新、删除（需登录，更新/删除限本人） |
 | `src/modules/user/user-account.controller.ts` | 当前用户路由（`/users/me/*`）：获取自身信息、修改密码、换绑手机号、换绑邮箱 |
+| `src/modules/user/admin-user.controller.ts` | 管理员用户路由（`/admin/users`）：用户列表/详情/编辑/启用禁用，仅 admin 角色可访问 |
 | `src/modules/user/user.service.ts` | 用户基础业务逻辑：CRUD、查询方法、字段更新 |
 | `src/modules/user/user-security.service.ts` | 账号安全业务逻辑：密码修改、手机换绑、邮箱换绑（含验证码消耗和唯一性校验） |
-| `src/modules/user/user.entity.ts` | TypeORM 实体定义 |
+| `src/modules/user/admin-user.service.ts` | 管理员用户业务逻辑：分页搜索筛选、更新角色/昵称、切换启用/禁用状态 |
+| `src/modules/user/user.entity.ts` | TypeORM 实体定义（含 UserRole 枚举、role 列、isActive 列） |
 | `src/modules/user/user.dto.ts` | 用户基础 DTO（CreateUserDto、UpdateUserDto、UserSelfDto、UserPublicDto） |
+| `src/modules/user/admin-user.dto.ts` | 管理端 DTO（AdminUserQueryDto、AdminUserDto、AdminUpdateUserDto、AdminToggleStatusDto） |
 | `src/modules/user/user-security.dto.ts` | 账号安全 DTO（ChangePasswordDto、ChangePhoneDto、ChangeEmailDto） |
 | `src/modules/user/user.module.ts` | 模块声明，导出 UserService 供 AuthModule 使用 |
 
@@ -48,6 +51,8 @@
 | avatar | varchar(512) | 头像 URL |
 | bio | varchar(200) | 个性签名 |
 | password | varchar(128) | bcrypt 哈希，`select: false` 默认不返回 |
+| role | varchar(10) DEFAULT 'user' | 角色枚举（`user` \| `admin`），写入 JWT payload |
+| isActive | boolean DEFAULT true | 是否启用，禁用后无法登录（返回 403） |
 | createdAt | timestamp | 创建时间 |
 | updatedAt | timestamp | 更新时间 |
 
@@ -127,6 +132,15 @@
 | PUT | `/users/me/password` | JWT | 5次/分 | 修改密码 |
 | PUT | `/users/me/phone` | JWT | 5次/分 | 换绑手机号 |
 | PUT | `/users/me/email` | JWT | 5次/分 | 换绑邮箱 |
+
+### 管理员路由（admin-user.controller.ts）
+
+| 方法 | 路由 | 鉴权 | 说明 |
+|------|------|------|------|
+| GET | `/admin/users` | JWT + Admin | 用户列表（分页 + 搜索 + 角色/状态筛选） |
+| GET | `/admin/users/:id` | JWT + Admin | 用户详情（管理员视角，含所有字段） |
+| PUT | `/admin/users/:id` | JWT + Admin | 更新用户（nickname、role），不能修改自己 |
+| PUT | `/admin/users/:id/status` | JWT + Admin | 启用/禁用用户，不能修改自己 |
 
 ## 前端交互设计
 

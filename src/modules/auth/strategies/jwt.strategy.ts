@@ -30,6 +30,6 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
     if (payload.purpose) {
       throw new UnauthorizedException('无效的认证令牌');
     }
-    return { sub: payload.sub };
+    return { sub: payload.sub, role: payload.role };
   }
 }

@@ -129,6 +129,7 @@ export class UserService {
       email: user.email,
       avatar: user.avatar,
       bio: user.bio,
+      role: user.role,
       createdAt: user.createdAt,
       updatedAt: user.updatedAt,
     };

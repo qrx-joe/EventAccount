@@ -8,6 +8,12 @@ import {
 } from 'typeorm';
 import { generateId } from '../../shared/utils/id-generator';
 
+/** 用户角色枚举 */
+export enum UserRole {
+  USER = 'user',
+  ADMIN = 'admin',
+}
+
 /**
  * 用户实体
  * 以手机号为主登录凭证
@@ -66,6 +72,21 @@ export class UserEntity {
     select: false,
   })
   password: string | null;
+
+  @Column({
+    type: 'varchar',
+    length: 10,
+    default: UserRole.USER,
+    comment: '角色（user | admin）',
+  })
+  role: UserRole;
+
+  @Column({
+    type: 'boolean',
+    default: true,
+    comment: '是否启用（禁用后无法登录）',
+  })
+  isActive: boolean;
 
   @CreateDateColumn({ comment: '创建时间' })
   createdAt: Date;
