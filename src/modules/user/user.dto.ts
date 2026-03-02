@@ -8,6 +8,7 @@ import {
 } from 'class-validator';
 import { ApiProperty } from '@nestjs/swagger';
 import { Transform } from 'class-transformer';
+import { UserRole } from './user.entity';
 
 /** 创建用户请求体 */
 export class CreateUserDto {
@@ -57,7 +58,11 @@ export class CreateUserDto {
     required: false,
   })
   @IsOptional()
-  @IsUrl()
+  @IsUrl(
+    { require_protocol: true, protocols: ['http', 'https'] },
+    { message: '头像 URL 格式不正确，仅支持 http/https 协议' },
+  )
+  @Length(1, 512)
   avatar?: string;
 
   @ApiProperty({
@@ -71,7 +76,7 @@ export class CreateUserDto {
   bio?: string;
 }
 
-/** 更新用户请求体（仅允许更新昵称、邮箱、头像、签名） */
+/** 更新用户请求体（仅允许更新昵称、头像、签名；邮箱变更走 PUT /me/email） */
 export class UpdateUserDto {
   @ApiProperty({
     description: '昵称',
@@ -84,24 +89,16 @@ export class UpdateUserDto {
   nickname?: string;
 
   @ApiProperty({
-    description: '邮箱',
-    example: 'zhangsan@example.com',
-    required: false,
-  })
-  @IsOptional()
-  @Transform(({ value }: { value: unknown }) =>
-    typeof value === 'string' ? value.trim().toLowerCase() : value,
-  )
-  @IsEmail()
-  email?: string;
-
-  @ApiProperty({
     description: '头像 URL',
     example: 'https://example.com/avatar.png',
     required: false,
   })
   @IsOptional()
-  @IsUrl()
+  @IsUrl(
+    { require_protocol: true, protocols: ['http', 'https'] },
+    { message: '头像 URL 格式不正确，仅支持 http/https 协议' },
+  )
+  @Length(1, 512)
   avatar?: string;
 
   @ApiProperty({
@@ -113,4 +110,58 @@ export class UpdateUserDto {
   @IsString()
   @Length(0, 200)
   bio?: string;
+}
+
+/** 用户自身信息响应（含手机号、邮箱等私有字段，不含密码） */
+export class UserSelfDto {
+  @ApiProperty({ description: '用户 ID', example: '01924a7e-...' })
+  id: string;
+
+  @ApiProperty({ description: '手机号', example: '13800138000' })
+  phone: string;
+
+  @ApiProperty({ description: '昵称', example: '张三' })
+  nickname: string | null;
+
+  @ApiProperty({ description: '邮箱', example: 'zhangsan@example.com' })
+  email: string | null;
+
+  @ApiProperty({
+    description: '头像 URL',
+    example: 'https://example.com/avatar.png',
+  })
+  avatar: string | null;
+
+  @ApiProperty({ description: '个性签名', example: '这个人很懒' })
+  bio: string | null;
+
+  @ApiProperty({ description: '角色', enum: UserRole, example: UserRole.USER })
+  role: UserRole;
+
+  @ApiProperty({ description: '创建时间' })
+  createdAt: Date;
+
+  @ApiProperty({ description: '更新时间' })
+  updatedAt: Date;
+}
+
+/** 用户公开信息响应（列表与公开资料） */
+export class UserPublicDto {
+  @ApiProperty({ description: '用户 ID', example: '01924a7e-...' })
+  id: string;
+
+  @ApiProperty({ description: '昵称', example: '张三' })
+  nickname: string | null;
+
+  @ApiProperty({
+    description: '头像 URL',
+    example: 'https://example.com/avatar.png',
+  })
+  avatar: string | null;
+
+  @ApiProperty({ description: '个性签名', example: '这个人很懒' })
+  bio: string | null;
+
+  @ApiProperty({ description: '创建时间' })
+  createdAt: Date;
 }

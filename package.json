@@ -20,7 +20,9 @@
     "test:debug": "node --inspect-brk -r tsconfig-paths/register -r ts-node/register node_modules/.bin/jest --runInBand",
     "test:e2e": "jest --config ./test/jest-e2e.json",
     "lint:check": "eslint \"{src,apps,libs,test}/**/*.ts\"",
-    "seed:themes": "nest build && node dist/seeds/seed-event-themes.js"
+    "seed:themes": "nest build && node dist/seeds/seed-event-themes.js",
+    "migration:run": "npx typeorm migration:run -d dist/data-source.js",
+    "migration:revert": "npx typeorm migration:revert -d dist/data-source.js"
   },
   "dependencies": {
     "@alicloud/dysmsapi20170525": "^4.5.0",
@@ -39,7 +41,9 @@
     "bcrypt": "^6.0.0",
     "class-transformer": "^0.5.1",
     "class-validator": "^0.14.3",
+    "cookie-parser": "^1.4.7",
     "helmet": "^8.1.0",
+    "ioredis": "^5.8.1",
     "joi": "^18.0.2",
     "nodemailer": "^8.0.1",
     "passport": "^0.7.0",
@@ -50,7 +54,7 @@
     "reflect-metadata": "^0.2.2",
     "rxjs": "^7.8.1",
     "typeorm": "^0.3.28",
-    "uuid": "^10.0.0"
+    "uuid": "^13.0.0"
   },
   "devDependencies": {
     "@eslint/eslintrc": "^3.2.0",
@@ -60,6 +64,7 @@
     "@nestjs/testing": "^11.0.1",
     "@types/ali-oss": "^6.23.3",
     "@types/bcrypt": "^6.0.0",
+    "@types/cookie-parser": "^1.4.10",
     "@types/express": "^5.0.0",
     "@types/jest": "^30.0.0",
     "@types/multer": "^2.0.0",
@@ -69,7 +74,6 @@
     "@types/passport-local": "^1.0.38",
     "@types/qrcode": "^1.5.6",
     "@types/supertest": "^6.0.2",
-    "@types/uuid": "^10.0.0",
     "eslint": "^9.18.0",
     "eslint-config-prettier": "^10.0.1",
     "eslint-plugin-prettier": "^5.2.2",

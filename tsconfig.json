@@ -22,5 +22,6 @@
     "noFallthroughCasesInSwitch": false,
     "rootDir": "./src",
     "tsBuildInfoFile": "./dist/.tsbuildinfo"
-  }
+  },
+  "exclude": ["node_modules", "dist", "test"]
 }

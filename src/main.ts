@@ -2,6 +2,7 @@ import { NestFactory } from '@nestjs/core';
 import { ValidationPipe, Logger } from '@nestjs/common';
 import { SwaggerModule, DocumentBuilder } from '@nestjs/swagger';
 import helmet from 'helmet';
+import cookieParser from 'cookie-parser';
 import { AppModule } from './app.module';
 import { AllExceptionsFilter } from './common/filters/http-exception.filter';
 
@@ -11,6 +12,8 @@ async function bootstrap() {
 
   // 安全头（放在 CORS 之前）
   app.use(helmet());
+
+  app.use(cookieParser());
 
   // CORS 限制 origin
   app.enableCors({

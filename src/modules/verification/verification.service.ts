@@ -2,159 +2,36 @@ import {
   Injectable,
   Logger,
   BadRequestException,
-  OnModuleInit,
   OnModuleDestroy,
 } from '@nestjs/common';
-import { ConfigService } from '@nestjs/config';
 import { randomInt, timingSafeEqual } from 'crypto';
-import Dysmsapi20170525, { SendSmsRequest } from '@alicloud/dysmsapi20170525';
-import { Config as OpenApiConfig } from '@alicloud/openapi-client';
-import { RuntimeOptions } from '@alicloud/tea-util';
-import * as nodemailer from 'nodemailer';
 import { VerificationCodeType } from './verification.dto';
-
-/** 验证码缓存条目 */
-interface CodeEntry {
-  code: string;
-  expiresAt: number;
-  /** 已尝试验证次数 */
-  attempts: number;
-}
-
-/** 频率限制缓存条目 */
-interface RateLimitEntry {
-  nextAllowedAt: number;
-}
+import { VerificationStoreGateway } from './store/verification-store.gateway';
+import { VerificationSenderService } from './verification-sender.service';
 
 /** 最大验证尝试次数 */
 const MAX_VERIFY_ATTEMPTS = 5;
 
-/** 清理过期条目的间隔（10 分钟） */
-const CLEANUP_INTERVAL_MS = 10 * 60 * 1000;
+const CODE_TTL_MS = 5 * 60 * 1000;
+
+const RATE_LIMIT_TTL_MS = 60 * 1000;
 
 /**
  * 验证码服务
- * 负责验证码的生成、发送（阿里云 SMS / Email / Mock）、校验
+ * 负责验证码的生成、频率限制、校验
+ * 实际发送委托给 VerificationSenderService
  */
 @Injectable()
-export class VerificationService implements OnModuleInit, OnModuleDestroy {
+export class VerificationService implements OnModuleDestroy {
   private readonly logger = new Logger(VerificationService.name);
 
-  /** 验证码存储：key = "target:type" */
-  private readonly codeStore = new Map<string, CodeEntry>();
+  constructor(
+    private readonly store: VerificationStoreGateway,
+    private readonly sender: VerificationSenderService,
+  ) {}
 
-  /** 频率限制存储：key = "target:type" */
-  private readonly rateLimitStore = new Map<string, RateLimitEntry>();
-
-  /** 阿里云 SMS 客户端（有配置时初始化） */
-  private smsClient: Dysmsapi20170525 | null = null;
-
-  /** SMS 签名和模板 */
-  private signName = '';
-  private templateCode = '';
-
-  /** 邮件 SMTP transporter（有配置时初始化） */
-  private emailTransporter: nodemailer.Transporter | null = null;
-
-  /** 发件人地址 */
-  private emailFrom = '';
-
-  /** 清理定时器 */
-  private cleanupTimer: ReturnType<typeof setInterval> | null = null;
-
-  constructor(private readonly configService: ConfigService) {
-    this.initSmsClient();
-    this.initEmailTransport();
-  }
-
-  /** 模块初始化时启动定期清理 */
-  onModuleInit(): void {
-    this.cleanupTimer = setInterval(
-      () => this.cleanupExpiredEntries(),
-      CLEANUP_INTERVAL_MS,
-    );
-    this.logger.log('验证码过期清理定时器已启动');
-  }
-
-  /** 模块销毁时清除定时器 */
-  onModuleDestroy(): void {
-    if (this.cleanupTimer) {
-      clearInterval(this.cleanupTimer);
-      this.cleanupTimer = null;
-    }
-  }
-
-  /** 清理过期的验证码和频率限制条目 */
-  private cleanupExpiredEntries(): void {
-    const now = Date.now();
-    let codesCleaned = 0;
-    let ratesCleaned = 0;
-
-    for (const [key, entry] of this.codeStore) {
-      if (now > entry.expiresAt) {
-        this.codeStore.delete(key);
-        codesCleaned++;
-      }
-    }
-
-    for (const [key, entry] of this.rateLimitStore) {
-      if (now > entry.nextAllowedAt) {
-        this.rateLimitStore.delete(key);
-        ratesCleaned++;
-      }
-    }
-
-    if (codesCleaned > 0 || ratesCleaned > 0) {
-      this.logger.debug(
-        `清理过期条目：验证码 ${codesCleaned} 条，频率限制 ${ratesCleaned} 条`,
-      );
-    }
-  }
-
-  /** 初始化阿里云 SMS 客户端 */
-  private initSmsClient(): void {
-    const accessKeyId = this.configService.get<string>('sms.accessKeyId');
-    const accessKeySecret = this.configService.get<string>(
-      'sms.accessKeySecret',
-    );
-    this.signName = this.configService.get<string>('sms.signName') || '';
-    this.templateCode =
-      this.configService.get<string>('sms.templateCode') || '';
-    const endpoint =
-      this.configService.get<string>('sms.endpoint') || 'dysmsapi.aliyuncs.com';
-
-    if (accessKeyId && accessKeySecret) {
-      const config = new OpenApiConfig({
-        accessKeyId,
-        accessKeySecret,
-        endpoint,
-      });
-      this.smsClient = new Dysmsapi20170525(config);
-      this.logger.log('阿里云 SMS 客户端初始化成功');
-    } else {
-      this.logger.warn('SMS 配置缺失，将使用 Mock 模式发送验证码');
-    }
-  }
-
-  /** 初始化邮件 SMTP transporter */
-  private initEmailTransport(): void {
-    const host = this.configService.get<string>('email.host');
-    const port = this.configService.get<number>('email.port');
-    const user = this.configService.get<string>('email.user');
-    const pass = this.configService.get<string>('email.pass');
-    this.emailFrom = this.configService.get<string>('email.from') || '';
-
-    if (host && user && pass) {
-      this.emailTransporter = nodemailer.createTransport({
-        host,
-        port: port || 465,
-        secure: (port || 465) === 465,
-        auth: { user, pass },
-      });
-      this.logger.log('邮件 SMTP transporter 初始化成功');
-    } else {
-      this.logger.warn('邮件 SMTP 配置缺失，将使用 Mock 模式发送邮箱验证码');
-    }
+  async onModuleDestroy(): Promise<void> {
+    await this.store.close();
   }
 
   /** 生成 6 位数字验证码（使用 crypto 安全随机数） */
@@ -167,6 +44,17 @@ export class VerificationService implements OnModuleInit, OnModuleDestroy {
     return `${target}:${type}`;
   }
 
+  /** 检查频率限制，超限则抛异常 */
+  private async enforceRateLimit(key: string): Promise<void> {
+    const remainMs = await this.store.getRateLimitRemainingMs(key);
+    if (remainMs > 0) {
+      const remainSeconds = Math.ceil(remainMs / 1000);
+      throw new BadRequestException(
+        `发送过于频繁，请 ${remainSeconds} 秒后再试`,
+      );
+    }
+  }
+
   /**
    * 发送短信验证码
    * @returns true 发送成功，抛异常则失败
@@ -176,44 +64,15 @@ export class VerificationService implements OnModuleInit, OnModuleDestroy {
     type: VerificationCodeType,
   ): Promise<boolean> {
     const key = this.getStoreKey(phone, type);
-
-    // 频率限制：同一手机号同一类型 60 秒内不能重复发送
-    const rateLimit = this.rateLimitStore.get(key);
-    if (rateLimit && Date.now() < rateLimit.nextAllowedAt) {
-      const remainSeconds = Math.ceil(
-        (rateLimit.nextAllowedAt - Date.now()) / 1000,
-      );
-      throw new BadRequestException(
-        `发送过于频繁，请 ${remainSeconds} 秒后再试`,
-      );
-    }
+    await this.enforceRateLimit(key);
 
     const code = this.generateCode();
 
-    // 发送短信（先发送，成功后再缓存，避免发送失败却限频）
-    if (this.smsClient && this.signName && this.templateCode) {
-      const sent = await this.sendViaSdk(phone, code);
-      if (!sent) {
-        throw new BadRequestException('短信发送失败，请稍后重试');
-      }
-    } else {
-      // Mock 模式
-      this.logger.log(
-        `[SMS Mock] 手机号: ${phone}, 验证码: ${code}, 类型: ${type}`,
-      );
-    }
+    // 先发送，成功后再缓存，避免发送失败却限频
+    await this.sender.sendSms(phone, code, type);
 
-    // 发送成功后缓存验证码，5 分钟过期，重置尝试次数
-    this.codeStore.set(key, {
-      code,
-      expiresAt: Date.now() + 5 * 60 * 1000,
-      attempts: 0,
-    });
-
-    // 设置频率限制，60 秒
-    this.rateLimitStore.set(key, {
-      nextAllowedAt: Date.now() + 60 * 1000,
-    });
+    await this.store.saveCode(key, code, CODE_TTL_MS);
+    await this.store.setRateLimit(key, RATE_LIMIT_TTL_MS);
 
     return true;
   }
@@ -227,120 +86,38 @@ export class VerificationService implements OnModuleInit, OnModuleDestroy {
     type: VerificationCodeType,
   ): Promise<boolean> {
     const key = this.getStoreKey(email, type);
-
-    // 频率限制：同一邮箱同一类型 60 秒内不能重复发送
-    const rateLimit = this.rateLimitStore.get(key);
-    if (rateLimit && Date.now() < rateLimit.nextAllowedAt) {
-      const remainSeconds = Math.ceil(
-        (rateLimit.nextAllowedAt - Date.now()) / 1000,
-      );
-      throw new BadRequestException(
-        `发送过于频繁，请 ${remainSeconds} 秒后再试`,
-      );
-    }
+    await this.enforceRateLimit(key);
 
     const code = this.generateCode();
 
-    // 根据验证码类型生成邮件标题和场景描述
-    const subjectMap: Record<VerificationCodeType, string> = {
-      [VerificationCodeType.LOGIN]: '登录验证码',
-      [VerificationCodeType.RESET]: '密码重置验证码',
-      [VerificationCodeType.REGISTER]: '注册验证码',
-    };
-    const subject = subjectMap[type] || '验证码通知';
+    // 先发送，成功后再缓存，避免发送失败却限频
+    await this.sender.sendEmail(email, code, type);
 
-    // 发送邮件（先发送，成功后再缓存，避免发送失败却限频）
-    if (this.emailTransporter) {
-      try {
-        await this.emailTransporter.sendMail({
-          from: this.emailFrom,
-          to: email,
-          subject,
-          text: `您的${subject}是：${code}，有效期 5 分钟。请勿将验证码告知他人。`,
-          html: `<p>您的${subject}是：<strong>${code}</strong>，有效期 5 分钟。</p><p>请勿将验证码告知他人。</p>`,
-        });
-        this.logger.log(`邮箱验证码发送成功: ${email}`);
-      } catch (error) {
-        this.logger.error(`邮箱验证码发送失败: ${(error as Error).message}`);
-        throw new BadRequestException('邮件发送失败，请稍后重试');
-      }
-    } else {
-      // Mock 模式
-      this.logger.log(
-        `[Email Mock] 邮箱: ${email}, 验证码: ${code}, 类型: ${type}`,
-      );
-    }
-
-    // 发送成功后缓存验证码，5 分钟过期，重置尝试次数
-    this.codeStore.set(key, {
-      code,
-      expiresAt: Date.now() + 5 * 60 * 1000,
-      attempts: 0,
-    });
-
-    // 设置频率限制，60 秒
-    this.rateLimitStore.set(key, {
-      nextAllowedAt: Date.now() + 60 * 1000,
-    });
+    await this.store.saveCode(key, code, CODE_TTL_MS);
+    await this.store.setRateLimit(key, RATE_LIMIT_TTL_MS);
 
     return true;
-  }
-
-  /** 通过阿里云 SDK 发送短信 */
-  private async sendViaSdk(phone: string, code: string): Promise<boolean> {
-    const request = new SendSmsRequest({
-      phoneNumbers: phone,
-      signName: this.signName,
-      templateCode: this.templateCode,
-      templateParam: JSON.stringify({ code }),
-    });
-
-    const runtime = new RuntimeOptions({});
-
-    try {
-      const response = await this.smsClient!.sendSmsWithOptions(
-        request,
-        runtime,
-      );
-      if (response.body?.code === 'OK') {
-        this.logger.log(`短信发送成功: ${phone}`);
-        return true;
-      }
-      this.logger.error(
-        `短信发送失败: ${response.body?.code} - ${response.body?.message}`,
-      );
-      return false;
-    } catch (error) {
-      this.logger.error(`短信发送异常: ${(error as Error).message}`);
-      return false;
-    }
   }
 
   /**
    * 校验验证码
    * @returns true 校验通过，false 校验失败
    */
-  verifyCode(
+  async verifyCode(
     target: string,
     type: VerificationCodeType,
     code: string,
-  ): boolean {
+  ): Promise<boolean> {
     const key = this.getStoreKey(target, type);
-    const entry = this.codeStore.get(key);
+    const entry = await this.store.getCodeEntry(key);
 
     if (!entry) {
       return false;
     }
 
-    // 已过期
-    if (Date.now() > entry.expiresAt) {
-      this.codeStore.delete(key);
-      return false;
-    }
-
     // 尝试次数超限，删除验证码并拒绝
     if (entry.attempts >= MAX_VERIFY_ATTEMPTS) {
-      this.codeStore.delete(key);
+      await this.store.deleteCode(key);
       this.logger.warn(`验证码尝试次数超限: ${target}, 类型: ${type}`);
       return false;
     }
@@ -349,12 +126,24 @@ export class VerificationService implements OnModuleInit, OnModuleDestroy {
     const a = Buffer.from(entry.code);
     const b = Buffer.from(code);
     if (a.length !== b.length || !timingSafeEqual(a, b)) {
-      entry.attempts++;
+      await this.store.incrementAttempts(key);
       return false;
     }
 
     // 校验成功后删除，防止重复使用
-    this.codeStore.delete(key);
+    await this.store.deleteCode(key);
     return true;
+  }
+
+  async clearCodesForTest(): Promise<void> {
+    await this.store.clearAllForTest();
+  }
+
+  async seedCodeForTest(
+    target: string,
+    type: VerificationCodeType,
+    code: string,
+  ): Promise<void> {
+    await this.store.seedCodeForTest(target, type, code, CODE_TTL_MS);
   }
 }

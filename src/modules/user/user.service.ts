@@ -5,10 +5,20 @@ import {
   Logger,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { Repository, QueryFailedError } from 'typeorm';
 import * as bcrypt from 'bcrypt';
+import { PG_UNIQUE_VIOLATION } from '../../common/constants/postgres';
 import { UserEntity } from './user.entity';
-import { CreateUserDto, UpdateUserDto } from './user.dto';
+import {
+  CreateUserDto,
+  UpdateUserDto,
+  UserPublicDto,
+  UserSelfDto,
+} from './user.dto';
+import {
+  PaginationQueryDto,
+  PaginatedResult,
+} from '../../common/dto/pagination.dto';
 
 /** bcrypt 哈希轮数（12 轮 ≈ 300ms，安全性与性能的平衡点） */
 const BCRYPT_SALT_ROUNDS = 12;
@@ -21,7 +31,8 @@ const BCRYPT_SALT_ROUNDS = 12;
 export class UserService {
   private readonly logger = new Logger(UserService.name);
 
-  private normalizeEmail(email: string): string {
+  /** 邮箱规范化（去空格 + 转小写） */
+  normalizeEmail(email: string): string {
     return email.trim().toLowerCase();
   }
 
@@ -65,14 +76,39 @@ export class UserService {
       nickname,
       password: hashed,
     });
-    const saved = await this.userRepo.save(user);
+
+    // 兜底捕获数据库唯一约束冲突（防止 findOne 检查与 save 写入之间的竞态窗口）
+    let saved: UserEntity;
+    try {
+      saved = await this.userRepo.save(user);
+    } catch (err) {
+      if (
+        err instanceof QueryFailedError &&
+        (err as QueryFailedError & { code?: string }).code ===
+          PG_UNIQUE_VIOLATION
+      ) {
+        throw new ConflictException('该手机号或邮箱已被使用');
+      }
+      throw err;
+    }
     this.logger.log(`用户创建成功: ${saved.id}`);
     return saved;
   }
 
-  /** 查询所有用户 */
-  async findAll(): Promise<UserEntity[]> {
-    return this.userRepo.find({ order: { createdAt: 'DESC' } });
+  /** 查询所有用户（仅公开字段，支持分页） */
+  async findAll(
+    query: PaginationQueryDto,
+  ): Promise<PaginatedResult<UserPublicDto>> {
+    const page = query.page ?? 1;
+    const pageSize = query.pageSize ?? 20;
+
+    const [items, total] = await this.userRepo.findAndCount({
+      select: ['id', 'nickname', 'avatar', 'bio', 'createdAt'],
+      order: { createdAt: 'DESC' },
+      skip: (page - 1) * pageSize,
+      take: pageSize,
+    });
+    return new PaginatedResult(items, total, page, pageSize);
   }
 
   /** 根据 ID 查询用户 */
@@ -82,6 +118,26 @@ export class UserService {
       throw new NotFoundException(`用户 ${id} 不存在`);
     }
     return user;
+  }
+
+  /** Entity → DTO 映射，显式摘取安全字段，防止新增 Entity 字段意外暴露 */
+  toSelfDto(user: UserEntity): UserSelfDto {
+    return {
+      id: user.id,
+      phone: user.phone,
+      nickname: user.nickname,
+      email: user.email,
+      avatar: user.avatar,
+      bio: user.bio,
+      role: user.role,
+      createdAt: user.createdAt,
+      updatedAt: user.updatedAt,
+    };
+  }
+
+  /** 根据 ID 查询用户并返回安全 DTO（供 Controller / 其他 Service 使用） */
+  async findOneSafe(id: string): Promise<UserSelfDto> {
+    return this.toSelfDto(await this.findOne(id));
   }
 
   /** 根据手机号查询用户 */
@@ -96,12 +152,10 @@ export class UserService {
   }
 
   /** 获取用户公开信息（不含敏感字段） */
-  async getPublicProfile(
-    id: string,
-  ): Promise<Pick<UserEntity, 'id' | 'nickname' | 'avatar' | 'bio'>> {
+  async getPublicProfile(id: string): Promise<UserPublicDto> {
     const user = await this.userRepo.findOne({
       where: { id },
-      select: ['id', 'nickname', 'avatar', 'bio'],
+      select: ['id', 'nickname', 'avatar', 'bio', 'createdAt'],
     });
     if (!user) {
       throw new NotFoundException(`用户 ${id} 不存在`);
@@ -109,14 +163,11 @@ export class UserService {
     return user;
   }
 
-  /** 更新用户 */
+  /** 更新用户（仅允许昵称、头像、签名；邮箱变更走 PUT /me/email） */
   async update(id: string, dto: UpdateUserDto): Promise<UserEntity> {
     const user = await this.findOne(id);
     // 逐字段赋值，避免 undefined 覆盖已有值
     if (dto.nickname !== undefined) user.nickname = dto.nickname;
-    if (dto.email !== undefined) {
-      user.email = dto.email ? this.normalizeEmail(dto.email) : dto.email;
-    }
     if (dto.avatar !== undefined) user.avatar = dto.avatar;
     if (dto.bio !== undefined) user.bio = dto.bio;
     return this.userRepo.save(user);
@@ -152,5 +203,13 @@ export class UserService {
     const hashed = await bcrypt.hash(newPassword, BCRYPT_SALT_ROUNDS);
     await this.userRepo.update(userId, { password: hashed });
     this.logger.log(`用户密码更新成功: ${userId}`);
+  }
+
+  /** 更新用户基础字段（内部复用） */
+  async updateBasicFields(
+    userId: string,
+    fields: Partial<Pick<UserEntity, 'phone' | 'email'>>,
+  ): Promise<void> {
+    await this.userRepo.update(userId, fields);
   }
 }

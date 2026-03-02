@@ -9,5 +9,5 @@ export default registerAs('oss', () => ({
   accessKeySecret: process.env.OSS_ACCESS_KEY_SECRET || '',
   bucket: process.env.OSS_BUCKET || '',
   region: process.env.OSS_REGION || '',
-  pathSuffix: process.env.OSS_PATH_SUFFIX || '',
+  customDomain: process.env.OSS_CUSTOM_DOMAIN || '',
 }));

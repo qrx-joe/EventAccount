@@ -32,7 +32,7 @@ export class AgreementService implements OnModuleInit {
   }
 
   /** 查询某类型最新版协议 */
-  async getLatestByType(type: string): Promise<AgreementEntity> {
+  async getLatestByType(type: AgreementType): Promise<AgreementEntity> {
     const agreement = await this.agreementRepo.findOne({
       where: { type },
       order: { effectiveDate: 'DESC' },
@@ -69,19 +69,23 @@ export class AgreementService implements OnModuleInit {
     return this.signRepo.save(sign);
   }
 
-  /** 注册时自动签署用户条款 + 隐私政策 */
+  /** 注册时自动签署用户条款 + 隐私政策（并行执行） */
   async autoSignOnRegister(userId: string): Promise<void> {
     const types: AgreementType[] = ['user-terms', 'privacy-policy'];
-    for (const type of types) {
-      try {
-        await this.signAgreement(userId, type);
-      } catch (err) {
-        // seed 数据未就绪时不阻塞注册流程，仅记录警告
+
+    const results = await Promise.allSettled(
+      types.map((type) => this.signAgreement(userId, type)),
+    );
+
+    // seed 数据未就绪时不阻塞注册流程，仅记录警告
+    results.forEach((result, index) => {
+      if (result.status === 'rejected') {
         this.logger.warn(
-          `自动签署协议 "${type}" 失败: ${(err as Error).message}`,
+          `自动签署协议 "${types[index]}" 失败: ${(result.reason as Error).message}`,
         );
       }
-    }
+    });
+
     this.logger.log(`用户 ${userId} 自动签署注册协议完成`);
   }
 
@@ -93,7 +97,7 @@ export class AgreementService implements OnModuleInit {
     });
   }
 
-  /** 幂等写入默认协议 seed 数据 */
+  /** 幂等写入默认协议 seed 数据（事务保证原子性） */
   private async seedDefaults(): Promise<void> {
     const seeds: Array<{
       type: AgreementType;
@@ -115,21 +119,33 @@ export class AgreementService implements OnModuleInit {
         content:
           '# 隐私政策\n\n本政策说明 T3 Program 如何收集、使用和保护您的个人信息。\n\n## 1. 信息收集\n\n我们收集您注册时提供的手机号、昵称等基本信息。\n\n## 2. 信息使用\n\n仅用于平台服务运营和用户身份验证。\n\n## 3. 信息安全\n\n采用加密存储和传输，定期安全审计。',
       },
+      {
+        type: 'payment-agreement',
+        title: '支付服务协议',
+        version: '1.0.0',
+        content:
+          '# 支付服务协议\n\n本协议用于说明平台内支付相关服务规则。\n\n## 1. 支付说明\n\n平台支付由合规第三方通道处理，订单信息以平台记录为准。\n\n## 2. 退款说明\n\n退款规则以活动组织方公示条款与法律法规为准。\n\n## 3. 风险提示\n\n请在支付前确认活动信息与费用细节。',
+      },
     ];
 
-    for (const seed of seeds) {
-      const exists = await this.agreementRepo.findOne({
-        where: { type: seed.type, version: seed.version },
-      });
-      if (!exists) {
-        const entity = this.agreementRepo.create({
-          id: generateId(),
-          ...seed,
-          effectiveDate: new Date(),
-        });
-        await this.agreementRepo.save(entity);
-        this.logger.log(`Seed 协议: ${seed.title} v${seed.version}`);
+    await this.agreementRepo.manager.transaction(async (manager) => {
+      for (const seed of seeds) {
+        const result = await manager
+          .createQueryBuilder()
+          .insert()
+          .into(AgreementEntity)
+          .values({
+            id: generateId(),
+            ...seed,
+            effectiveDate: new Date(),
+          })
+          .orIgnore()
+          .execute();
+
+        if (result.identifiers.length > 0) {
+          this.logger.log(`Seed 协议: ${seed.title} v${seed.version}`);
+        }
       }
-    }
+    });
   }
 }

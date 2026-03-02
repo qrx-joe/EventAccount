@@ -95,4 +95,4 @@
 
 ## 接口文档
 
-详细接口参数和返回值见 Swagger：`/api-docs`（Tags: 协议）
+详细接口参数和返回值见 Swagger：`/api/docs`（Tags: 协议）
