@@ -42,8 +42,8 @@
 
 ### 鉴权信息
 
-- 如果需要鉴权，这是一个有效的 token：
-- 或者过期，用这个：
+- 如果需要鉴权，这是一个有效的 token：eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJ0ZXN0LXVzZXItaWQtMDAxIiwiaWF0IjoxNzcyMzIwMzg1LCJleHAiOjE3NzI5MjUxODV9.9TgyHIEVHP_HkoBCkNp6oyiA9TRZDZPIn1chNt8InDU
+- 或者过期，用这个：eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJ0ZXN0LXVzZXItaWQtMDAyIiwiaWF0IjoxNzcyMzIwNDg2LCJleHAiOjE3NzI5MjUyODZ9.4kGYY-cYd7z-NsB68eZPa84YBxn_Z89AtmPO4x9nyaY
 
 ## Development Guidelines
 

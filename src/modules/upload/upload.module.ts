@@ -1,10 +1,11 @@
 import { Module } from '@nestjs/common';
-import { UploadController } from './upload.controller';
-import { UploadService } from './upload.service';
+import { UploadController } from './upload.controller.js';
+import { UploadService } from './upload.service.js';
 
 /**
  * 文件上传模块
- * 提供通用文件上传能力（OSS），可复用于头像、封面等场景
+ * 无 TypeORM 依赖，仅声明 Controller 和 Service
+ * 导出 Service 供其他模块使用
  */
 @Module({
   controllers: [UploadController],

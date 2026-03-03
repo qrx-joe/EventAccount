@@ -6,19 +6,26 @@ import * as Joi from 'joi';
 import databaseConfig from './config/database.config';
 import smsConfig from './config/sms.config';
 import emailConfig from './config/email.config';
-import redisConfig from './config/redis.config';
 import ossConfig from './config/oss.config';
+import amapConfig from './config/amap.config';
 import { UserModule } from './modules/user/user.module';
 import { AuthModule } from './modules/auth/auth.module';
 import { VerificationModule } from './modules/verification/verification.module';
 import { AgreementModule } from './modules/agreement/agreement.module';
 import { UploadModule } from './modules/upload/upload.module';
+import { TagModule } from './modules/tag/tag.module';
+import { CategoryModule } from './modules/category/category.module';
+import { EventModule } from './modules/event/event.module';
+import { EventThemeModule } from './modules/event-theme/event-theme.module';
+import { RegistrationModule } from './modules/registration/registration.module';
+import { PaymentModule } from './modules/payment/payment.module';
+import { NotificationModule } from './modules/notification/notification.module';
 @Module({
   imports: [
     // 全局配置模块，加载 .env 文件（环境专属文件优先，后加载的覆盖先加载的）
     ConfigModule.forRoot({
       isGlobal: true,
-      load: [databaseConfig, smsConfig, emailConfig, redisConfig, ossConfig],
+      load: [databaseConfig, smsConfig, emailConfig, ossConfig, amapConfig],
       validationSchema: Joi.object({
         // 数据库
         DB_HOST: Joi.string().default('localhost'),
@@ -34,13 +41,6 @@ import { UploadModule } from './modules/upload/upload.module';
         NODE_ENV: Joi.string()
           .valid('development', 'production', 'test')
           .default('development'),
-        REDIS_HOST: Joi.string().default('127.0.0.1'),
-        REDIS_PORT: Joi.number().default(6379),
-        REDIS_PASSWORD: Joi.string().allow('').default(''),
-        REDIS_DB: Joi.number().default(0),
-        OTP_STORE_BACKEND: Joi.string()
-          .valid('memory', 'redis')
-          .default('memory'),
       }),
     }),
 
@@ -56,8 +56,6 @@ import { UploadModule } from './modules/upload/upload.module';
         database: config.get<string>('database.database'),
         entities: [__dirname + '/**/*.entity{.ts,.js}'],
         synchronize: config.get<string>('NODE_ENV') !== 'production', // 生产环境禁止自动同步
-        migrationsRun: config.get<string>('NODE_ENV') === 'production', // 仅生产环境自动执行 migration
-        migrations: [__dirname + '/migrations/*{.ts,.js}'],
         logging: config.get<string>('NODE_ENV') === 'development',
       }),
     }),
@@ -75,6 +73,13 @@ import { UploadModule } from './modules/upload/upload.module';
     VerificationModule,
     AgreementModule,
     UploadModule,
+    TagModule,
+    CategoryModule,
+    EventModule,
+    EventThemeModule,
+    RegistrationModule,
+    PaymentModule,
+    NotificationModule,
   ],
 })
 export class AppModule {}
