@@ -594,9 +594,7 @@ export class RegistrationService {
     }
 
     if (!formData) {
-      throw new BadRequestException(
-        '请填写报名问卷',
-      )
+      throw new BadRequestException('请填写报名问卷');
     }
 
     const missingFields = formFields.filter((field) => {
