@@ -15,7 +15,7 @@ import {
   ApiResponse,
   ApiQuery,
 } from '@nestjs/swagger';
-import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard.js';
+import { JwtAuthGuard, OptionalJwtAuthGuard } from '../auth/guards/jwt-auth.guard.js';
 import { JwtPayload } from '../auth/auth.dto.js';
 import { ApiResponseDto } from '../../common/dto/api-response.dto.js';
 import { SearchService } from './search.service.js';
@@ -39,8 +39,11 @@ export class SearchController {
   /**
    * 搜索活动和社区
    * 支持关键词搜索，可按类型筛选
+   * 可选认证：登录用户会记录搜索历史
    */
   @Get()
+  @ApiBearerAuth()
+  @UseGuards(OptionalJwtAuthGuard)
   @ApiOperation({ summary: '搜索活动和社区' })
   @ApiResponse({ status: 200, description: '搜索成功' })
   async search(
