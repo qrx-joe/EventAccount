@@ -12,13 +12,13 @@
 
 | 模块 | 文档路径 | 说明 |
 |------|----------|------|
+| 管理端 | [`admin.md`](admin.md) | 管理端 RBAC、用户管理、扩展规范 |
 | 认证 | [`auth.md`](auth.md) | 注册、登录（密码/短信/邮箱）、密码找回 |
 | 验证码 | [`verification.md`](verification.md) | 短信/邮箱验证码发送与校验 |
 | 用户 | [`user.md`](user.md) | 用户 CRUD、个人资料编辑、账号安全（密码/手机/邮箱）、外观主题 |
 | 个人中心架构 | [`personal-center.md`](personal-center.md) | 个人中心模块的架构分层、数据流、设计决策记录 |
 | 个人中心审查 | [`personal-center-review.md`](personal-center-review.md) | `feature/account-settings` 分支合并前的 AI 审查报告 |
 | 协议 | [`agreement.md`](agreement.md) | 用户协议与隐私政策管理 |
-| 网站首页 | [`../../docs/landing-page-架构文档.md`](../../docs/landing-page-架构文档.md) | 纯前端模块，首页及子页面（关于/帮助/协议） |
 
 ## 技术栈概览
 
