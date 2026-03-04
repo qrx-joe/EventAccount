@@ -21,6 +21,7 @@ import { RegistrationModule } from './modules/registration/registration.module';
 import { PaymentModule } from './modules/payment/payment.module';
 import { NotificationModule } from './modules/notification/notification.module';
 import { CommunityModule } from './modules/community/community.module';
+import { SearchModule } from './modules/search/search.module';
 @Module({
   imports: [
     // 全局配置模块，加载 .env 文件（环境专属文件优先，后加载的覆盖先加载的）
@@ -82,6 +83,7 @@ import { CommunityModule } from './modules/community/community.module';
     PaymentModule,
     NotificationModule,
     CommunityModule,
+    SearchModule,
   ],
 })
 export class AppModule {}
