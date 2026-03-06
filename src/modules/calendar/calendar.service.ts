@@ -107,6 +107,22 @@ export class CalendarService {
       .take(pageSize);
 
     const [items, total] = await qb.getManyAndCount();
+
+    // 如果用户已登录，标记是否已订阅
+    if (userId && items.length > 0) {
+      const calendarIds = items.map(c => c.id);
+      const subscriptions = await this.subscriptionRepo
+        .createQueryBuilder('sub')
+        .where('sub.userId = :userId', { userId })
+        .andWhere('sub.calendarId IN (:...calendarIds)', { calendarIds })
+        .getMany();
+
+      const subscribedIds = new Set(subscriptions.map(s => s.calendarId));
+      items.forEach(calendar => {
+        (calendar as CalendarEntity & { isSubscribed?: boolean }).isSubscribed = subscribedIds.has(calendar.id);
+      });
+    }
+
     return { items, total };
   }
 
@@ -228,9 +244,13 @@ export class CalendarService {
 
     const saved = await this.subscriptionRepo.save(subscription);
 
-    // 更新订阅人数
-    calendar.subscriberCount += 1;
-    await this.calendarRepo.save(calendar);
+    // 使用原子操作更新订阅人数，避免并发问题
+    await this.calendarRepo
+      .createQueryBuilder()
+      .update(CalendarEntity)
+      .set({ subscriberCount: () => '"subscriberCount" + 1' })
+      .where('id = :id', { id: dto.calendarId })
+      .execute();
 
     this.logger.log(`用户 ${userId} 订阅日历 ${dto.calendarId}`);
     return saved;
@@ -249,12 +269,13 @@ export class CalendarService {
 
     await this.subscriptionRepo.remove(subscription);
 
-    // 更新订阅人数
-    const calendar = await this.calendarRepo.findOne({ where: { id: calendarId } });
-    if (calendar && calendar.subscriberCount > 0) {
-      calendar.subscriberCount -= 1;
-      await this.calendarRepo.save(calendar);
-    }
+    // 使用原子操作更新订阅人数，避免并发问题和负数
+    await this.calendarRepo
+      .createQueryBuilder()
+      .update(CalendarEntity)
+      .set({ subscriberCount: () => 'GREATEST("subscriberCount" - 1, 0)' })
+      .where('id = :id', { id: calendarId })
+      .execute();
 
     this.logger.log(`用户 ${userId} 取消订阅日历 ${calendarId}`);
   }
