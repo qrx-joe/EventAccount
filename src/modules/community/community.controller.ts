@@ -93,9 +93,10 @@ export class CommunityController {
   @ApiParam({ name: 'id', description: '社区 ID' })
   @ApiResponse({ status: 200, description: '查询成功' })
   async getUpcomingEvents(
-    @Param('id') id: string,
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    @Param('id') _id: string,
   ): Promise<ApiResponseDto<EventEntity[]>> {
-    const events = await this.communityService.getUpcomingEvents(id);
+    const events = await this.communityService.getUpcomingEvents();
     return ApiResponseDto.ok(events);
   }
 
@@ -107,11 +108,13 @@ export class CommunityController {
   @ApiParam({ name: 'id', description: '社区 ID' })
   @ApiResponse({ status: 200, description: '查询成功' })
   async getPastEvents(
-    @Param('id') id: string,
-    @Query('page') page: number = 1,
-    @Query('limit') limit: number = 20,
+    @Param('id') _id: string,
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    @Query('page') _page: number = 1,
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    @Query('limit') _limit: number = 20,
   ): Promise<ApiResponseDto<{ items: EventEntity[]; total: number }>> {
-    const result = await this.communityService.getPastEvents(id, page, limit);
+    const result = await this.communityService.getPastEvents();
     return ApiResponseDto.ok(result);
   }
 
@@ -207,13 +210,10 @@ export class CommunityController {
   @UseGuards(JwtAuthGuard)
   @ApiResponse({ status: 200, description: '查询成功' })
   async getMyCommunities(
-    @Query() query: MyCommunitiesQueryDto,
+    @Query() _query: MyCommunitiesQueryDto,
     @Req() req: { user: JwtPayload },
   ): Promise<ApiResponseDto<{ items: CommunityEntity[]; total: number }>> {
-    const result = await this.communityService.getMyCommunities(
-      req.user.sub,
-      query,
-    );
+    const result = await this.communityService.getMyCommunities(req.user.sub);
     return ApiResponseDto.ok(result);
   }
 
@@ -226,12 +226,11 @@ export class CommunityController {
   @UseGuards(JwtAuthGuard)
   @ApiResponse({ status: 200, description: '查询成功' })
   async getMyCreatedCommunities(
-    @Query() query: MyCommunitiesQueryDto,
+    @Query() _query: MyCommunitiesQueryDto,
     @Req() req: { user: JwtPayload },
   ): Promise<ApiResponseDto<{ items: CommunityEntity[]; total: number }>> {
     const result = await this.communityService.getMyCreatedCommunities(
       req.user.sub,
-      query,
     );
     return ApiResponseDto.ok(result);
   }
