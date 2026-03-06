@@ -9,7 +9,12 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { CommunityEntity } from './community.entity.js';
 import { CommunityMemberEntity } from './community-member.entity.js';
-import { CommunityMemberRole, CommunityMemberStatus } from './community.dto.js';
+import {
+  CommunityMemberRole,
+  CommunityMemberStatus,
+  CommunityStatus,
+  CommunityVisibility,
+} from './community.dto.js';
 import {
   CreateCommunityDto,
   UpdateCommunityDto,
@@ -18,7 +23,6 @@ import {
   JoinCommunityDto,
   AddCommunityMemberDto,
   UpdateCommunityMemberDto,
-  CommunityStatus,
 } from './community.dto.js';
 import { EventEntity } from '../event/event.entity.js';
 
@@ -40,7 +44,10 @@ export class CommunityService {
   /**
    * 创建社区
    */
-  async create(dto: CreateCommunityDto, creatorId: string): Promise<CommunityEntity> {
+  async create(
+    dto: CreateCommunityDto,
+    creatorId: string,
+  ): Promise<CommunityEntity> {
     const { tagIds, ...communityData } = dto;
 
     const community = this.communityRepository.create({
@@ -52,7 +59,12 @@ export class CommunityService {
 
     // 关联标签（如果有）
     if (tagIds && tagIds.length > 0) {
-      community.tags = tagIds.map((id) => ({ id }) as CommunityEntity['tags'][0]);
+      community.tags = tagIds.map(
+        (id) =>
+          ({
+            id,
+          }) as CommunityEntity['tags'][0],
+      );
     }
 
     const saved = await this.communityRepository.save(community);
@@ -74,7 +86,9 @@ export class CommunityService {
   /**
    * 社区列表（分页 + 筛选）
    */
-  async findAll(query: QueryCommunityDto): Promise<{ items: CommunityEntity[]; total: number }> {
+  async findAll(
+    query: QueryCommunityDto,
+  ): Promise<{ items: CommunityEntity[]; total: number }> {
     const page = query.page ?? 1;
     const pageSize = query.pageSize ?? 20;
 
@@ -85,11 +99,15 @@ export class CommunityService {
       .where('community.status = :status', { status: CommunityStatus.ACTIVE });
 
     if (query.keyword) {
-      qb.andWhere('community.name ILIKE :keyword', { keyword: `%${query.keyword}%` });
+      qb.andWhere('community.name ILIKE :keyword', {
+        keyword: `%${query.keyword}%`,
+      });
     }
 
     if (query.visibility) {
-      qb.andWhere('community.visibility = :visibility', { visibility: query.visibility });
+      qb.andWhere('community.visibility = :visibility', {
+        visibility: query.visibility,
+      });
     }
 
     qb.orderBy('community.createdAt', 'DESC')
@@ -114,14 +132,14 @@ export class CommunityService {
     }
 
     // 如果社区已被禁用，只有创建者和管理员可以查看
-    if (community.status === 'inactive') {
-      if (!userId || (community.creatorId !== userId)) {
+    if (community.status === CommunityStatus.INACTIVE) {
+      if (!userId || community.creatorId !== userId) {
         throw new ForbiddenException('该社区已被禁用');
       }
     }
 
     // 如果是私密社区，检查用户是否有权限查看
-    if (community.visibility === 'private' && userId) {
+    if (community.visibility === CommunityVisibility.PRIVATE && userId) {
       const isMember = await this.isMember(id, userId);
       if (!isMember && community.creatorId !== userId) {
         throw new ForbiddenException('无权查看此社区');
@@ -153,7 +171,12 @@ export class CommunityService {
       if (tagIds.length === 0) {
         community.tags = [];
       } else {
-        community.tags = tagIds.map((id) => ({ id }) as CommunityEntity['tags'][0]);
+        community.tags = tagIds.map(
+          (id) =>
+            ({
+              id,
+            }) as CommunityEntity['tags'][0],
+        );
       }
     }
 
@@ -189,7 +212,7 @@ export class CommunityService {
     const community = await this.findById(communityId, userId);
 
     // 检查社区是否被禁用
-    if (community.status === 'inactive') {
+    if (community.status === CommunityStatus.INACTIVE) {
       throw new ForbiddenException('该社区已被禁用，无法加入');
     }
 
@@ -260,7 +283,11 @@ export class CommunityService {
     if (userId) {
       const community = await this.findById(communityId, userId);
       const isMember = await this.isMember(communityId, userId);
-      if (!isMember && community.creatorId !== userId && community.visibility === 'private') {
+      if (
+        !isMember &&
+        community.creatorId !== userId &&
+        community.visibility === CommunityVisibility.PRIVATE
+      ) {
         throw new ForbiddenException('无权查看成员列表');
       }
     }
@@ -299,7 +326,9 @@ export class CommunityService {
 
     await this.memberRepository.remove(member);
     await this.updateMemberCount(communityId);
-    this.logger.log(`用户 ${operatorId} 移除成员 ${memberId} 从社区 ${communityId}`);
+    this.logger.log(
+      `用户 ${operatorId} 移除成员 ${memberId} 从社区 ${communityId}`,
+    );
   }
 
   /**
@@ -335,7 +364,9 @@ export class CommunityService {
       await this.memberRepository.remove(member);
     }
 
-    this.logger.log(`用户 ${operatorId} ${approve ? '通过' : '拒绝'}成员 ${memberId} 加入社区 ${communityId}`);
+    this.logger.log(
+      `用户 ${operatorId} ${approve ? '通过' : '拒绝'}成员 ${memberId} 加入社区 ${communityId}`,
+    );
     return member;
   }
 
@@ -371,7 +402,6 @@ export class CommunityService {
    */
   async getMyCommunities(
     userId: string,
-    query?: { page?: number; pageSize?: number },
   ): Promise<{ items: CommunityEntity[]; total: number }> {
     const memberships = await this.memberRepository.find({
       where: { userId, status: CommunityMemberStatus.ACTIVE },
@@ -390,7 +420,6 @@ export class CommunityService {
    */
   async getMyCreatedCommunities(
     userId: string,
-    query?: { page?: number; pageSize?: number },
   ): Promise<{ items: CommunityEntity[]; total: number }> {
     const communities = await this.getCreatedCommunities(userId);
     return { items: communities, total: communities.length };
@@ -441,21 +470,17 @@ export class CommunityService {
   /**
    * 获取即将举办的活动
    */
-  async getUpcomingEvents(communityId: string): Promise<EventEntity[]> {
+  getUpcomingEvents(): Promise<EventEntity[]> {
     // 这里简化实现，实际应该注入 EventRepository
-    return [];
+    return Promise.resolve([]);
   }
 
   /**
    * 获取往期活动
    */
-  async getPastEvents(
-    communityId: string,
-    page: number,
-    limit: number,
-  ): Promise<{ items: EventEntity[]; total: number }> {
+  getPastEvents(): Promise<{ items: EventEntity[]; total: number }> {
     // 这里简化实现，实际应该注入 EventRepository
-    return { items: [], total: 0 };
+    return Promise.resolve({ items: [], total: 0 });
   }
 
   /**
@@ -491,7 +516,9 @@ export class CommunityService {
     const saved = await this.memberRepository.save(member);
     await this.updateMemberCount(communityId);
 
-    this.logger.log(`用户 ${operatorId} 添加成员 ${dto.userId} 到社区 ${communityId}`);
+    this.logger.log(
+      `用户 ${operatorId} 添加成员 ${dto.userId} 到社区 ${communityId}`,
+    );
     return saved;
   }
 

@@ -1,7 +1,6 @@
 import {
   Controller,
   Get,
-  Post,
   Delete,
   Query,
   Param,
@@ -15,7 +14,10 @@ import {
   ApiResponse,
   ApiQuery,
 } from '@nestjs/swagger';
-import { JwtAuthGuard, OptionalJwtAuthGuard } from '../auth/guards/jwt-auth.guard.js';
+import {
+  JwtAuthGuard,
+  OptionalJwtAuthGuard,
+} from '../auth/guards/jwt-auth.guard.js';
 import { JwtPayload } from '../auth/auth.dto.js';
 import { ApiResponseDto } from '../../common/dto/api-response.dto.js';
 import { SearchService } from './search.service.js';
@@ -77,7 +79,8 @@ export class SearchController {
   async getRecommendedCommunities(
     @Query() query: HotSearchQueryDto,
   ): Promise<ApiResponseDto<HotItemDto[]>> {
-    const communities = await this.searchService.getRecommendedCommunities(query);
+    const communities =
+      await this.searchService.getRecommendedCommunities(query);
     return ApiResponseDto.ok(communities);
   }
 
@@ -91,7 +94,9 @@ export class SearchController {
   async getHotKeywords(
     @Query('limit') limit: string = '10',
   ): Promise<ApiResponseDto<string[]>> {
-    const keywords = await this.searchService.getHotKeywords(parseInt(limit, 10));
+    const keywords = await this.searchService.getHotKeywords(
+      parseInt(limit, 10),
+    );
     return ApiResponseDto.ok(keywords);
   }
 

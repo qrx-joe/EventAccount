@@ -39,7 +39,10 @@ export class CalendarService {
    * 创建日历
    * 每个社区只能有一个日历
    */
-  async create(dto: CreateCalendarDto, creatorId: string): Promise<CalendarEntity> {
+  async create(
+    dto: CreateCalendarDto,
+    creatorId: string,
+  ): Promise<CalendarEntity> {
     // 检查社区是否存在
     const community = await this.communityRepo.findOne({
       where: { id: dto.communityId },
@@ -79,7 +82,10 @@ export class CalendarService {
   /**
    * 日历列表（分页 + 筛选）
    */
-  async findAll(query: QueryCalendarDto, userId?: string): Promise<{ items: CalendarEntity[]; total: number }> {
+  async findAll(
+    query: QueryCalendarDto,
+    userId?: string,
+  ): Promise<{ items: CalendarEntity[]; total: number }> {
     const page = query.page ?? 1;
     const pageSize = query.pageSize ?? 20;
 
@@ -89,11 +95,15 @@ export class CalendarService {
       .where('calendar.status = :status', { status: CalendarStatus.ACTIVE });
 
     if (query.keyword) {
-      qb.andWhere('calendar.name ILIKE :keyword', { keyword: `%${query.keyword}%` });
+      qb.andWhere('calendar.name ILIKE :keyword', {
+        keyword: `%${query.keyword}%`,
+      });
     }
 
     if (query.communityId) {
-      qb.andWhere('calendar.communityId = :communityId', { communityId: query.communityId });
+      qb.andWhere('calendar.communityId = :communityId', {
+        communityId: query.communityId,
+      });
     }
 
     // 如果不是查询自己的日历，只显示公开的
@@ -110,16 +120,17 @@ export class CalendarService {
 
     // 如果用户已登录，标记是否已订阅
     if (userId && items.length > 0) {
-      const calendarIds = items.map(c => c.id);
+      const calendarIds = items.map((c) => c.id);
       const subscriptions = await this.subscriptionRepo
         .createQueryBuilder('sub')
         .where('sub.userId = :userId', { userId })
         .andWhere('sub.calendarId IN (:...calendarIds)', { calendarIds })
         .getMany();
 
-      const subscribedIds = new Set(subscriptions.map(s => s.calendarId));
-      items.forEach(calendar => {
-        (calendar as CalendarEntity & { isSubscribed?: boolean }).isSubscribed = subscribedIds.has(calendar.id);
+      const subscribedIds = new Set(subscriptions.map((s) => s.calendarId));
+      items.forEach((calendar) => {
+        (calendar as CalendarEntity & { isSubscribed?: boolean }).isSubscribed =
+          subscribedIds.has(calendar.id);
       });
     }
 
@@ -142,7 +153,9 @@ export class CalendarService {
   /**
    * 获取我订阅的日历
    */
-  async getMySubscribedCalendars(userId: string): Promise<CalendarSubscriptionEntity[]> {
+  async getMySubscribedCalendars(
+    userId: string,
+  ): Promise<CalendarSubscriptionEntity[]> {
     return this.subscriptionRepo
       .createQueryBuilder('sub')
       .leftJoinAndSelect('sub.calendar', 'calendar')
@@ -187,7 +200,11 @@ export class CalendarService {
   /**
    * 更新日历
    */
-  async update(id: string, dto: UpdateCalendarDto, userId: string): Promise<CalendarEntity> {
+  async update(
+    id: string,
+    dto: UpdateCalendarDto,
+    userId: string,
+  ): Promise<CalendarEntity> {
     const calendar = await this.findById(id, userId);
 
     if (calendar.creatorId !== userId) {
@@ -222,7 +239,10 @@ export class CalendarService {
   /**
    * 订阅日历
    */
-  async subscribe(dto: SubscribeCalendarDto, userId: string): Promise<CalendarSubscriptionEntity> {
+  async subscribe(
+    dto: SubscribeCalendarDto,
+    userId: string,
+  ): Promise<CalendarSubscriptionEntity> {
     const calendar = await this.findById(dto.calendarId, userId);
 
     if (calendar.creatorId === userId) {

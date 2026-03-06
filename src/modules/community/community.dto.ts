@@ -8,8 +8,6 @@ import {
   IsInt,
   Min,
   IsArray,
-  IsJSON,
-  IsUrl,
 } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { PaginationQueryDto } from '../../common/dto/pagination.dto.js';

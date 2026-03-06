@@ -16,6 +16,7 @@ import { generateId } from '../../shared/utils/id-generator.js';
 import { UserEntity } from '../user/user.entity.js';
 import { TagEntity } from '../tag/tag.entity.js';
 import { CommunityMemberEntity } from './community-member.entity.js';
+import { CommunityStatus, CommunityVisibility } from './community.dto.js';
 
 /**
  * 社区实体
@@ -49,7 +50,7 @@ export class CommunityEntity {
     default: 'active',
     comment: '状态：active/inactive/disbanded',
   })
-  status: string;
+  status: CommunityStatus;
 
   @Column({
     type: 'varchar',
@@ -57,7 +58,7 @@ export class CommunityEntity {
     default: 'public',
     comment: '可见性：public/private',
   })
-  visibility: string;
+  visibility: CommunityVisibility;
 
   @Column({
     type: 'boolean',

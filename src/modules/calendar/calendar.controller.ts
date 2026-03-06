@@ -29,6 +29,7 @@ import {
 import { ApiResponseDto } from '../../common/dto/api-response.dto.js';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard.js';
 import { JwtPayload } from '../auth/auth.dto.js';
+import { CalendarEntity } from './calendar.entity.js';
 
 /**
  * 日历控制器
@@ -52,7 +53,7 @@ export class CalendarController {
     const userId = req?.user?.sub;
     const result = await this.calendarService.findAll(query, userId);
     return ApiResponseDto.ok({
-      items: result.items.map(item => this.mapToResponseDto(item)),
+      items: result.items.map((item) => this.mapToResponseDto(item)),
       total: result.total,
     });
   }
@@ -69,7 +70,9 @@ export class CalendarController {
     @Req() req: { user: JwtPayload },
   ): Promise<ApiResponseDto<CalendarResponseDto[]>> {
     const calendars = await this.calendarService.getMyCalendars(req.user.sub);
-    return ApiResponseDto.ok(calendars.map(item => this.mapToResponseDto(item)));
+    return ApiResponseDto.ok(
+      calendars.map((item) => this.mapToResponseDto(item)),
+    );
   }
 
   /**
@@ -83,8 +86,10 @@ export class CalendarController {
   async getMySubscribedCalendars(
     @Req() req: { user: JwtPayload },
   ): Promise<ApiResponseDto<CalendarResponseDto[]>> {
-    const subscriptions = await this.calendarService.getMySubscribedCalendars(req.user.sub);
-    const calendars = subscriptions.map(sub => ({
+    const subscriptions = await this.calendarService.getMySubscribedCalendars(
+      req.user.sub,
+    );
+    const calendars = subscriptions.map((sub) => ({
       ...this.mapToResponseDto(sub.calendar),
       isSubscribed: true,
     }));
@@ -194,7 +199,10 @@ export class CalendarController {
     @Req() req: { user: JwtPayload },
   ): Promise<ApiResponseDto<CalendarResponseDto>> {
     await this.calendarService.subscribe(dto, req.user.sub);
-    const calendar = await this.calendarService.findById(dto.calendarId, req.user.sub);
+    const calendar = await this.calendarService.findById(
+      dto.calendarId,
+      req.user.sub,
+    );
     return ApiResponseDto.created(this.mapToResponseDto(calendar), '订阅成功');
   }
 
@@ -229,14 +237,19 @@ export class CalendarController {
     @Param('calendarId', ParseUUIDPipe) calendarId: string,
     @Req() req: { user: JwtPayload },
   ): Promise<ApiResponseDto<{ isSubscribed: boolean }>> {
-    const isSubscribed = await this.calendarService.isSubscribed(calendarId, req.user.sub);
+    const isSubscribed = await this.calendarService.isSubscribed(
+      calendarId,
+      req.user.sub,
+    );
     return ApiResponseDto.ok({ isSubscribed });
   }
 
   /**
    * 将实体映射为响应 DTO
    */
-  private mapToResponseDto(calendar: any): CalendarResponseDto {
+  private mapToResponseDto(
+    calendar: CalendarEntity & { isSubscribed?: boolean },
+  ): CalendarResponseDto {
     return {
       id: calendar.id,
       communityId: calendar.communityId,
@@ -247,13 +260,21 @@ export class CalendarController {
       themeColor: calendar.themeColor,
       isPublic: calendar.isPublic,
       subscriberCount: calendar.subscriberCount,
-      createdAt: calendar.createdAt instanceof Date ? calendar.createdAt.toISOString() : calendar.createdAt,
-      updatedAt: calendar.updatedAt instanceof Date ? calendar.updatedAt.toISOString() : calendar.updatedAt,
-      community: calendar.community ? {
-        id: calendar.community.id,
-        name: calendar.community.name,
-        avatar: calendar.community.avatar,
-      } : undefined,
+      createdAt:
+        calendar.createdAt instanceof Date
+          ? calendar.createdAt.toISOString()
+          : calendar.createdAt,
+      updatedAt:
+        calendar.updatedAt instanceof Date
+          ? calendar.updatedAt.toISOString()
+          : calendar.updatedAt,
+      community: calendar.community
+        ? {
+            id: calendar.community.id,
+            name: calendar.community.name,
+            avatar: calendar.community.avatar,
+          }
+        : undefined,
       isSubscribed: calendar.isSubscribed,
     };
   }

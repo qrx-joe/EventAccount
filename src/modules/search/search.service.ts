@@ -1,6 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, Like, MoreThan } from 'typeorm';
+import { Repository, MoreThan } from 'typeorm';
 import { SearchRecordEntity } from './search.entity.js';
 import { EventEntity } from '../event/event.entity.js';
 import { CommunityEntity } from '../community/community.entity.js';
@@ -33,10 +33,7 @@ export class SearchService {
    * 搜索活动和社区
    * 根据关键词搜索活动名称、社区名称
    */
-  async search(
-    dto: SearchQueryDto,
-    userId?: string,
-  ): Promise<SearchResultDto> {
+  async search(dto: SearchQueryDto, userId?: string): Promise<SearchResultDto> {
     const { keyword, type, page = 1, pageSize = 20 } = dto;
     const skip = (page - 1) * pageSize;
 
@@ -49,7 +46,7 @@ export class SearchService {
         .createQueryBuilder('event')
         .where(
           '(event.title LIKE :keyword OR event.description LIKE :keyword OR event.locationName LIKE :keyword OR event.locationAddress LIKE :keyword)',
-          { keyword: `%${keyword}%` }
+          { keyword: `%${keyword}%` },
         )
         .andWhere('event.status = :status', { status: 'published' })
         .leftJoin('event.creator', 'creator')
@@ -81,7 +78,7 @@ export class SearchService {
         .createQueryBuilder('community')
         .where(
           '(community.name LIKE :keyword OR community.description LIKE :keyword)',
-          { keyword: `%${keyword}%` }
+          { keyword: `%${keyword}%` },
         )
         .andWhere('community.status = :status', { status: 'active' })
         .leftJoin('community.creator', 'creator')
@@ -108,7 +105,12 @@ export class SearchService {
 
     // 记录搜索历史
     if (userId) {
-      await this.recordSearch(userId, keyword, type || 'all', events.length + communities.length);
+      await this.recordSearch(
+        userId,
+        keyword,
+        type || 'all',
+        events.length + communities.length,
+      );
     }
 
     const total = events.length + communities.length;
@@ -119,8 +121,8 @@ export class SearchService {
       events,
       communities,
       total,
-      page: page!,
-      pageSize: pageSize!,
+      page,
+      pageSize,
     };
   }
 
@@ -159,7 +161,9 @@ export class SearchService {
    * 获取推荐社区
    * 基于成员数量和活跃度
    */
-  async getRecommendedCommunities(query: HotSearchQueryDto): Promise<HotItemDto[]> {
+  async getRecommendedCommunities(
+    query: HotSearchQueryDto,
+  ): Promise<HotItemDto[]> {
     const { limit } = query;
 
     const communities = await this.communityRepository
@@ -188,7 +192,10 @@ export class SearchService {
   /**
    * 获取用户搜索历史
    */
-  async getUserSearchHistory(userId: string, limit: number = 10): Promise<SearchRecordEntity[]> {
+  async getUserSearchHistory(
+    userId: string,
+    limit: number = 10,
+  ): Promise<SearchRecordEntity[]> {
     return this.searchRecordRepository.find({
       where: { userId },
       order: { createdAt: 'DESC' },
@@ -210,7 +217,7 @@ export class SearchService {
       .groupBy('record.keyword')
       .orderBy('count', 'DESC')
       .take(limit)
-      .getRawMany();
+      .getRawMany<{ keyword: string; count: string }>();
 
     return results.map((item) => item.keyword);
   }

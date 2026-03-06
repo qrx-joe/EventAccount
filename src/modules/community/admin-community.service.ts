@@ -1,8 +1,4 @@
-import {
-  Injectable,
-  NotFoundException,
-  Logger,
-} from '@nestjs/common';
+import { Injectable, NotFoundException, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { CommunityEntity } from './community.entity';
@@ -14,6 +10,7 @@ import {
   AdminCommunityStatus,
 } from './admin-community.dto';
 import { PaginatedResult } from '../../common/dto/pagination.dto';
+import { CommunityStatus } from './community.dto';
 
 /**
  * 管理员社区服务
@@ -38,11 +35,7 @@ export class AdminCommunityService {
     const qb = this.communityRepo
       .createQueryBuilder('c')
       .leftJoin('c.creator', 'creator')
-      .addSelect([
-        'creator.id',
-        'creator.nickname',
-        'creator.avatar',
-      ])
+      .addSelect(['creator.id', 'creator.nickname', 'creator.avatar'])
       .where('c.status != :disbanded', { disbanded: 'disbanded' }); // 排除已解散的社区
 
     if (query.search) {
@@ -59,7 +52,12 @@ export class AdminCommunityService {
       .take(pageSize);
 
     const [items, total] = await qb.getManyAndCount();
-    return new PaginatedResult(items as AdminCommunityDto[], total, page, pageSize);
+    return new PaginatedResult(
+      items as AdminCommunityDto[],
+      total,
+      page,
+      pageSize,
+    );
   }
 
   /** 管理员查看社区详情 */
@@ -113,13 +111,15 @@ export class AdminCommunityService {
     }
 
     // 不能修改已解散社区的状态
-    if (community.status === 'disbanded') {
+    if (community.status === CommunityStatus.DISBANDED) {
       throw new NotFoundException('该社区已解散，无法修改状态');
     }
 
     community.status = dto.status;
     await this.communityRepo.save(community);
-    this.logger.log(`管理员${dto.status === AdminCommunityStatus.ACTIVE ? '启用' : '禁用'}社区: ${id}`);
+    this.logger.log(
+      `管理员${dto.status === AdminCommunityStatus.ACTIVE ? '启用' : '禁用'}社区: ${id}`,
+    );
     return this.findOne(id);
   }
 

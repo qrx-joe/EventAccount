@@ -18,6 +18,7 @@ import {
 } from './event.dto.js';
 import { CreateTicketDto, UpdateTicketDto } from './ticket.dto.js';
 import { EventCoHostEntity } from './event-co-host.entity.js';
+import { CommunityStatus } from '../community/community.dto.js';
 import { UserEntity } from '../user/user.entity.js';
 import { CommunityEntity } from '../community/community.entity.js';
 
@@ -57,7 +58,7 @@ export class EventService {
       if (!community) {
         throw new NotFoundException('指定的社区不存在');
       }
-      if (community.status === 'inactive') {
+      if (community.status === CommunityStatus.INACTIVE) {
         throw new ForbiddenException('该社区已被禁用，无法创建活动');
       }
     }

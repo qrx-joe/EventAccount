@@ -30,9 +30,9 @@ export class UserModule implements OnModuleInit {
   async onModuleInit() {
     const adminPhone = '18000000000';
     const adminPassword = 'admin123';
-    
-    let user = await this.userRepo.findOne({ where: { phone: adminPhone } });
-    
+
+    const user = await this.userRepo.findOne({ where: { phone: adminPhone } });
+
     if (user) {
       if (user.role !== UserRole.ADMIN) {
         user.role = UserRole.ADMIN;
@@ -43,14 +43,14 @@ export class UserModule implements OnModuleInit {
       }
     } else {
       const passwordHash = await bcrypt.hash(adminPassword, 12);
-      
+
       const newUser = new UserEntity();
       newUser.phone = adminPhone;
       newUser.password = passwordHash;
       newUser.nickname = '管理员';
       newUser.role = UserRole.ADMIN;
       newUser.isActive = true;
-      
+
       await this.userRepo.save(newUser);
       this.logger.log(`已自动创建管理员账户: ${adminPhone} / ${adminPassword}`);
     }

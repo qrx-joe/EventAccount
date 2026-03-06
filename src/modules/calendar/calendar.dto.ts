@@ -5,12 +5,9 @@ import {
   MaxLength,
   IsEnum,
   IsBoolean,
-  IsInt,
-  Min,
 } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { PaginationQueryDto } from '../../common/dto/pagination.dto.js';
-import { Type } from 'class-transformer';
 
 // ==================== 基础类型 ====================
 

@@ -1,10 +1,5 @@
-import {
-  IsOptional,
-  IsString,
-  IsEnum,
-  Length,
-} from 'class-validator';
-import { ApiProperty } from '@nestjs/swagger';
+import { IsOptional, IsString, IsEnum, Length } from 'class-validator';
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { PaginationQueryDto } from '../../common/dto/pagination.dto';
 
 /** 管理端社区状态 */
@@ -20,7 +15,10 @@ export class AdminCommunityQueryDto extends PaginationQueryDto {
   @IsString()
   search?: string;
 
-  @ApiProperty({ description: '状态筛选', enum: AdminCommunityStatus, required: false })
+  @ApiPropertyOptional({
+    description: '状态筛选',
+    enum: AdminCommunityStatus,
+  })
   @IsOptional()
   @IsEnum(AdminCommunityStatus)
   status?: AdminCommunityStatus;
@@ -85,7 +83,10 @@ export class AdminUpdateCommunityDto {
   @IsString()
   description?: string;
 
-  @ApiProperty({ description: '状态', enum: AdminCommunityStatus, required: false })
+  @ApiPropertyOptional({
+    description: '状态',
+    enum: AdminCommunityStatus,
+  })
   @IsOptional()
   @IsEnum(AdminCommunityStatus)
   status?: AdminCommunityStatus;

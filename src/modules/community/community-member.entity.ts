@@ -12,6 +12,7 @@ import {
 import { generateId } from '../../shared/utils/id-generator.js';
 import { UserEntity } from '../user/user.entity.js';
 import { CommunityEntity } from './community.entity.js';
+import { CommunityMemberRole, CommunityMemberStatus } from './community.dto.js';
 
 /**
  * 社区成员实体
@@ -37,7 +38,7 @@ export class CommunityMemberEntity {
     default: 'member',
     comment: '角色：creator/admin/member',
   })
-  role: string;
+  role: CommunityMemberRole;
 
   @Column({
     type: 'varchar',
@@ -45,7 +46,7 @@ export class CommunityMemberEntity {
     default: 'active',
     comment: '状态：active/inactive/blocked',
   })
-  status: string;
+  status: CommunityMemberStatus;
 
   @Column({
     type: 'timestamp',

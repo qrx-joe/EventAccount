@@ -19,7 +19,9 @@ import { UserEntity } from '../user/user.entity.js';
 @Entity('calendar_subscriptions')
 @Index('idx_calendar_subscriptions_user_id', ['userId'])
 @Index('idx_calendar_subscriptions_calendar_id', ['calendarId'])
-@Index('idx_calendar_subscriptions_user_calendar', ['userId', 'calendarId'], { unique: true })
+@Index('idx_calendar_subscriptions_user_calendar', ['userId', 'calendarId'], {
+  unique: true,
+})
 export class CalendarSubscriptionEntity {
   @PrimaryColumn({ type: 'varchar', length: 36, comment: 'UUIDv7 主键' })
   id: string;

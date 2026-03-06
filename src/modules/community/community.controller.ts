@@ -369,9 +369,6 @@ export class CommunityController {
       req.user.sub,
       approve,
     );
-    return ApiResponseDto.ok(
-      member,
-      approve ? '审核通过' : '已拒绝申请',
-    );
+    return ApiResponseDto.ok(member, approve ? '审核通过' : '已拒绝申请');
   }
 }

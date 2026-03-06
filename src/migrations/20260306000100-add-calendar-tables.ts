@@ -10,7 +10,9 @@ export class AddCalendarTables20260306000100 implements MigrationInterface {
   public async up(queryRunner: QueryRunner): Promise<void> {
     // 检查表是否已存在
     const calendarTableExists = await queryRunner.hasTable('calendars');
-    const subscriptionTableExists = await queryRunner.hasTable('calendar_subscriptions');
+    const subscriptionTableExists = await queryRunner.hasTable(
+      'calendar_subscriptions',
+    );
 
     if (!calendarTableExists) {
       // 创建日历表
@@ -96,7 +98,9 @@ export class AddCalendarTables20260306000100 implements MigrationInterface {
 
   public async down(queryRunner: QueryRunner): Promise<void> {
     // 删除订阅表
-    const subscriptionTableExists = await queryRunner.hasTable('calendar_subscriptions');
+    const subscriptionTableExists = await queryRunner.hasTable(
+      'calendar_subscriptions',
+    );
     if (subscriptionTableExists) {
       await queryRunner.query(`DROP TABLE "calendar_subscriptions"`);
     }
