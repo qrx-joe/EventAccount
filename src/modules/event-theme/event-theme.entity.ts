@@ -7,7 +7,7 @@ import {
   BeforeInsert,
   Index,
 } from 'typeorm';
-import { generateId } from '../../shared/utils/id-generator.js';
+import { generateId } from '../../shared/utils/id-generator';
 
 /**
  * 活动主题模板实体

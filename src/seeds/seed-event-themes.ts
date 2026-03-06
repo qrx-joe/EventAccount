@@ -1,10 +1,11 @@
 import { DataSource } from 'typeorm';
 import * as dotenv from 'dotenv';
-import { EventThemeEntity } from '../modules/event-theme/event-theme.entity.js';
-import { generateId } from '../shared/utils/id-generator.js';
+import * as path from 'path';
+import { EventThemeEntity } from '../modules/event-theme/event-theme.entity';
+import { generateId } from '../shared/utils/id-generator';
 
 // 加载环境变量
-dotenv.config();
+dotenv.config({ path: path.resolve(process.cwd(), '.env.dev') });
 
 /**
  * 活动主题种子数据

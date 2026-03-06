@@ -20,6 +20,9 @@ import { EventThemeModule } from './modules/event-theme/event-theme.module';
 import { RegistrationModule } from './modules/registration/registration.module';
 import { PaymentModule } from './modules/payment/payment.module';
 import { NotificationModule } from './modules/notification/notification.module';
+import { CommunityModule } from './modules/community/community.module';
+import { SearchModule } from './modules/search/search.module';
+import { CalendarModule } from './modules/calendar/calendar.module';
 @Module({
   imports: [
     // 全局配置模块，加载 .env 文件（环境专属文件优先，后加载的覆盖先加载的）
@@ -80,6 +83,9 @@ import { NotificationModule } from './modules/notification/notification.module';
     RegistrationModule,
     PaymentModule,
     NotificationModule,
+    CommunityModule,
+    SearchModule,
+    CalendarModule,
   ],
 })
 export class AppModule {}

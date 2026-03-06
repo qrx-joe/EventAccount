@@ -18,7 +18,9 @@ import {
 } from './event.dto.js';
 import { CreateTicketDto, UpdateTicketDto } from './ticket.dto.js';
 import { EventCoHostEntity } from './event-co-host.entity.js';
+import { CommunityStatus } from '../community/community.dto.js';
 import { UserEntity } from '../user/user.entity.js';
+import { CommunityEntity } from '../community/community.entity.js';
 
 /**
  * 活动服务
@@ -37,6 +39,8 @@ export class EventService {
     private readonly eventCoHostRepository: Repository<EventCoHostEntity>,
     @InjectRepository(UserEntity)
     private readonly userRepository: Repository<UserEntity>,
+    @InjectRepository(CommunityEntity)
+    private readonly communityRepository: Repository<CommunityEntity>,
   ) {}
 
   /**
@@ -45,6 +49,19 @@ export class EventService {
    */
   async create(dto: CreateEventDto, creatorId: string): Promise<EventEntity> {
     const { tagIds, ...eventData } = dto;
+
+    // 如果指定了社区，检查社区状态
+    if (eventData.communityId) {
+      const community = await this.communityRepository.findOne({
+        where: { id: eventData.communityId },
+      });
+      if (!community) {
+        throw new NotFoundException('指定的社区不存在');
+      }
+      if (community.status === CommunityStatus.INACTIVE) {
+        throw new ForbiddenException('该社区已被禁用，无法创建活动');
+      }
+    }
 
     const event = this.eventRepository.create({
       ...eventData,

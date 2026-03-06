@@ -110,6 +110,11 @@ export class CreateEventDto {
   @IsString()
   categoryId?: string;
 
+  @ApiPropertyOptional({ description: '所属社区 ID' })
+  @IsOptional()
+  @IsString()
+  communityId?: string;
+
   @ApiPropertyOptional({ description: '活动主题配置' })
   @IsOptional()
   @IsObject()

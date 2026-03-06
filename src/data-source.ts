@@ -1,4 +1,9 @@
 import { DataSource } from 'typeorm';
+import * as dotenv from 'dotenv';
+import * as path from 'path';
+
+// 加载 .env.dev 文件
+dotenv.config({ path: path.resolve(__dirname, '../.env.dev') });
 
 const appDataSource = new DataSource({
   type: 'postgres',
