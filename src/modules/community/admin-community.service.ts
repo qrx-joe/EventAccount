@@ -53,7 +53,7 @@ export class AdminCommunityService {
 
     const [items, total] = await qb.getManyAndCount();
     return new PaginatedResult(
-      items as AdminCommunityDto[],
+      items as unknown as AdminCommunityDto[],
       total,
       page,
       pageSize,
@@ -72,7 +72,7 @@ export class AdminCommunityService {
     }
 
     // 已解散的社区管理员也能查看
-    return community as AdminCommunityDto;
+    return community as unknown as AdminCommunityDto;
   }
 
   /** 管理员更新社区信息（name、description、status） */
@@ -90,7 +90,8 @@ export class AdminCommunityService {
 
     if (dto.name !== undefined) community.name = dto.name;
     if (dto.description !== undefined) community.description = dto.description;
-    if (dto.status !== undefined) community.status = dto.status;
+    if (dto.status !== undefined)
+      community.status = dto.status as unknown as CommunityStatus;
 
     await this.communityRepo.save(community);
     this.logger.log(`管理员更新社区: ${id}`);
@@ -115,7 +116,7 @@ export class AdminCommunityService {
       throw new NotFoundException('该社区已解散，无法修改状态');
     }
 
-    community.status = dto.status;
+    community.status = dto.status as unknown as CommunityStatus;
     await this.communityRepo.save(community);
     this.logger.log(
       `管理员${dto.status === AdminCommunityStatus.ACTIVE ? '启用' : '禁用'}社区: ${id}`,

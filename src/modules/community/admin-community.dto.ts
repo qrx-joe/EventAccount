@@ -2,10 +2,11 @@ import { IsOptional, IsString, IsEnum, Length } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { PaginationQueryDto } from '../../common/dto/pagination.dto';
 
-/** 管理端社区状态 */
+/** 管理端社区状态 - 与 CommunityStatus 兼容 */
 export enum AdminCommunityStatus {
   ACTIVE = 'active',
   INACTIVE = 'inactive',
+  DISBANDED = 'disbanded',
 }
 
 /** 管理员查询社区列表参数 */
