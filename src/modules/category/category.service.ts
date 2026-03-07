@@ -58,6 +58,16 @@ export class CategoryService {
   }
 
   /**
+   * 查询用户是否已订阅指定分类
+   */
+  async isSubscribed(categoryId: string, userId: string): Promise<boolean> {
+    const count = await this.subscriberRepository.count({
+      where: { categoryId, userId },
+    });
+    return count > 0;
+  }
+
+  /**
    * 订阅分类
    * 订阅后自动更新 subscriber_count
    */

@@ -5,6 +5,7 @@ import { EventTicketEntity } from './event-ticket.entity.js';
 import { EventCoHostEntity } from './event-co-host.entity.js';
 import { UserEntity } from '../user/user.entity.js';
 import { CommunityEntity } from '../community/community.entity.js';
+import { CategoryEntity } from '../category/category.entity.js';
 import { EventController } from './event.controller.js';
 import { EventService } from './event.service.js';
 import { SharedServicesModule } from '../../shared/services/shared-services.module.js';
@@ -22,6 +23,7 @@ import { SharedServicesModule } from '../../shared/services/shared-services.modu
       EventCoHostEntity,
       UserEntity,
       CommunityEntity,
+      CategoryEntity,
     ]),
     SharedServicesModule,
   ],

@@ -5,8 +5,9 @@ import {
   BadRequestException,
   Logger,
 } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { Repository, DataSource } from 'typeorm';
 import * as QRCode from 'qrcode';
 import { EventEntity } from './event.entity.js';
 import { EventTicketEntity } from './event-ticket.entity.js';
@@ -14,6 +15,7 @@ import {
   CreateEventDto,
   UpdateEventDto,
   QueryEventDto,
+  QueryEventCitiesDto,
   MyEventsQueryDto,
 } from './event.dto.js';
 import { CreateTicketDto, UpdateTicketDto } from './ticket.dto.js';
@@ -21,6 +23,71 @@ import { EventCoHostEntity } from './event-co-host.entity.js';
 import { CommunityStatus } from '../community/community.dto.js';
 import { UserEntity } from '../user/user.entity.js';
 import { CommunityEntity } from '../community/community.entity.js';
+import { CategoryEntity } from '../category/category.entity.js';
+
+type DiscoverRegionKey = 'asia' | 'north-america' | 'europe';
+
+export interface DiscoverCityItem {
+  name: string;
+  count: number;
+}
+
+export interface DiscoverCityRegion {
+  key: DiscoverRegionKey;
+  label: string;
+  cities: DiscoverCityItem[];
+}
+
+const CITY_REGION_PRESETS: Array<{
+  key: DiscoverRegionKey;
+  label: string;
+  cities: string[];
+}> = [
+  {
+    key: 'asia',
+    label: '亚太',
+    cities: [
+      '上海',
+      '北京',
+      '广州',
+      '深圳',
+      '成都',
+      '杭州',
+      '重庆',
+      '武汉',
+      '苏州',
+      '西安',
+      '南京',
+      '长沙',
+      '郑州',
+      '天津',
+      '合肥',
+      '青岛',
+      '东莞',
+      '宁波',
+      '佛山',
+      '东京',
+      '首尔',
+      '新加坡',
+    ],
+  },
+  {
+    key: 'north-america',
+    label: '北美',
+    cities: [
+      'San Francisco',
+      'New York',
+      'Los Angeles',
+      'Toronto',
+      'Vancouver',
+    ],
+  },
+  {
+    key: 'europe',
+    label: '欧洲',
+    cities: ['London', 'Paris', 'Berlin', 'Amsterdam', 'Barcelona'],
+  },
+];
 
 /**
  * 活动服务
@@ -41,6 +108,10 @@ export class EventService {
     private readonly userRepository: Repository<UserEntity>,
     @InjectRepository(CommunityEntity)
     private readonly communityRepository: Repository<CommunityEntity>,
+    @InjectRepository(CategoryEntity)
+    private readonly categoryRepository: Repository<CategoryEntity>,
+    private readonly dataSource: DataSource,
+    private readonly configService: ConfigService,
   ) {}
 
   /**
@@ -48,6 +119,9 @@ export class EventService {
    * 新创建的活动默认为 draft 状态
    */
   async create(dto: CreateEventDto, creatorId: string): Promise<EventEntity> {
+    // 校验活动时间：开始时间必须早于结束时间
+    this.validateEventTimeRange(dto.startTime, dto.endTime);
+
     const { tagIds, ...eventData } = dto;
 
     // 如果指定了社区，检查社区状态
@@ -79,7 +153,7 @@ export class EventService {
   }
 
   /**
-   * 根据 ID 查询活动详情
+   * 根据 ID 查询活动详情（内部使用，不做状态/可见性限制）
    * 加载创建者、分类、标签关联
    */
   async findById(id: string): Promise<EventEntity> {
@@ -87,6 +161,31 @@ export class EventService {
       where: { id },
       relations: ['creator', 'category', 'tags', 'tickets', 'coHosts'],
     });
+
+    if (!event) {
+      throw new NotFoundException('活动不存在');
+    }
+
+    return event;
+  }
+
+  /**
+   * 查询公开活动详情
+   * 仅返回已发布且公开可见的活动，创建者信息不含手机号
+   */
+  async findPublicById(id: string): Promise<EventEntity> {
+    const event = await this.eventRepository
+      .createQueryBuilder('event')
+      .leftJoin('event.creator', 'creator')
+      .addSelect(['creator.id', 'creator.nickname', 'creator.avatar'])
+      .leftJoinAndSelect('event.category', 'category')
+      .leftJoinAndSelect('event.tags', 'tags')
+      .leftJoinAndSelect('event.tickets', 'tickets')
+      .leftJoinAndSelect('event.coHosts', 'coHosts')
+      .where('event.id = :id', { id })
+      .andWhere('event.status = :status', { status: 'published' })
+      .andWhere('event.visibility = :visibility', { visibility: 'public' })
+      .getOne();
 
     if (!event) {
       throw new NotFoundException('活动不存在');
@@ -107,7 +206,16 @@ export class EventService {
     const event = await this.findById(id);
     this.assertCreator(event, userId);
 
+    if (event.status !== 'draft') {
+      throw new BadRequestException('只有草稿状态的活动可以编辑');
+    }
+
     const { tagIds, ...updateData } = dto;
+
+    // 校验活动时间（合并现有值和更新值）
+    const startTime = updateData.startTime ?? event.startTime.toISOString();
+    const endTime = updateData.endTime ?? event.endTime.toISOString();
+    this.validateEventTimeRange(startTime, endTime);
 
     // 更新基本字段
     Object.assign(event, updateData);
@@ -130,7 +238,19 @@ export class EventService {
     const event = await this.findById(id);
     this.assertCreator(event, userId);
 
-    await this.eventRepository.remove(event);
+    await this.dataSource.transaction(async (manager) => {
+      // 已发布的活动删除时需回退分类计数
+      if (event.status === 'published' && event.categoryId) {
+        await manager
+          .createQueryBuilder()
+          .update(CategoryEntity)
+          .set({ eventCount: () => 'GREATEST("eventCount" - 1, 0)' })
+          .where('id = :id', { id: event.categoryId })
+          .execute();
+      }
+
+      await manager.remove(EventEntity, event);
+    });
   }
 
   /**
@@ -140,45 +260,140 @@ export class EventService {
   async findAll(
     query: QueryEventDto,
   ): Promise<{ items: EventEntity[]; total: number }> {
-    const { status, categoryId, keyword, page = 1, limit = 20 } = query;
+    const {
+      status,
+      categoryId,
+      keyword,
+      city,
+      dateStart,
+      dateEnd,
+      locationType,
+      sortBy = 'latest',
+      page = 1,
+      limit = 20,
+    } = query;
 
     const qb = this.eventRepository
       .createQueryBuilder('event')
       .leftJoin('event.creator', 'creator')
-      .addSelect([
-        'creator.id',
-        'creator.nickname',
-        'creator.avatar',
-        'creator.phone',
-      ])
+      .addSelect(['creator.id', 'creator.nickname', 'creator.avatar'])
       .leftJoinAndSelect('event.category', 'category')
       .leftJoinAndSelect('event.tags', 'tags');
 
-    if (status) {
-      qb.andWhere('event.status = :status', { status });
-    }
+    // 公开接口强制限制：仅返回已发布且公开可见的活动，忽略客户端传入的 status 参数
+    void status;
+    qb.andWhere('event.status = :status', { status: 'published' });
+    qb.andWhere('event.visibility = :visibility', { visibility: 'public' });
 
     if (categoryId) {
       qb.andWhere('event.categoryId = :categoryId', { categoryId });
     }
 
     if (keyword) {
-      qb.andWhere('event.title LIKE :keyword', {
-        keyword: `%${keyword}%`,
+      qb.andWhere("event.title ILIKE :keyword ESCAPE '\\'", {
+        keyword: `%${this.escapeLike(keyword)}%`,
       });
     }
 
-    qb.orderBy('event.createdAt', 'DESC')
-      .skip((page - 1) * limit)
-      .take(limit);
+    if (city) {
+      const escapedCity = `%${this.escapeLike(city)}%`;
+      qb.andWhere(
+        "(event.locationName ILIKE :city ESCAPE '\\' OR event.locationAddress ILIKE :city ESCAPE '\\')",
+        { city: escapedCity },
+      );
+    }
+
+    if (dateStart) {
+      qb.andWhere('event.startTime >= :dateStart', { dateStart });
+    }
+
+    if (dateEnd) {
+      qb.andWhere('event.startTime <= :dateEnd', { dateEnd });
+    }
+
+    if (locationType) {
+      qb.andWhere('event.locationType = :locationType', { locationType });
+    }
+
+    if (sortBy === 'upcoming') {
+      // upcoming 仅展示未来活动，按开始时间正序
+      qb.andWhere('event.startTime >= NOW()')
+        .orderBy('event.startTime', 'ASC')
+        .addOrderBy('event.createdAt', 'DESC');
+    } else if (sortBy === 'trending') {
+      qb.addSelect(
+        (subQuery) =>
+          subQuery
+            .select('COALESCE(SUM(ticket.soldCount), 0)')
+            .from(EventTicketEntity, 'ticket')
+            .where('ticket.eventId = event.id'),
+        'ticketsoldcount',
+      )
+        .orderBy('ticketsoldcount', 'DESC')
+        .addOrderBy('event.startTime', 'ASC')
+        .addOrderBy('event.createdAt', 'DESC');
+    } else {
+      qb.orderBy('event.createdAt', 'DESC');
+    }
+
+    qb.skip((page - 1) * limit).take(limit);
 
     const [items, total] = await qb.getManyAndCount();
     return { items, total };
   }
 
   /**
+   * 获取发现页城市探索聚合数据
+   * 使用单条 SQL 条件聚合，避免全表加载 + 内存过滤
+   * ILIKE 实现大小写不敏感匹配
+   */
+  async getDiscoverCityRegions(
+    query: QueryEventCitiesDto,
+  ): Promise<DiscoverCityRegion[]> {
+    const targetRegions = query.region
+      ? CITY_REGION_PRESETS.filter((r) => r.key === query.region)
+      : CITY_REGION_PRESETS;
+
+    const allCities = targetRegions.flatMap((r) => r.cities);
+    if (allCities.length === 0) {
+      return [];
+    }
+
+    // 单条 SQL 条件聚合：每个城市一个 SUM(CASE WHEN ... ILIKE ... THEN 1 ELSE 0 END)
+    // 使用 select([]) 清除默认实体列，避免 SUM 无 GROUP BY 时 PostgreSQL 报错
+    const qb = this.eventRepository
+      .createQueryBuilder('event')
+      .select([])
+      .where('event.status = :status', { status: 'published' })
+      .andWhere('event.visibility = :visibility', { visibility: 'public' })
+      .andWhere('event."locationType" = :type', { type: 'offline' });
+
+    allCities.forEach((city, i) => {
+      const param = `city_${i}`;
+      qb.addSelect(
+        `SUM(CASE WHEN COALESCE(event."locationName", '') || ' ' || COALESCE(event."locationAddress", '') ILIKE :${param} THEN 1 ELSE 0 END)`,
+        param,
+      );
+      qb.setParameter(param, `%${city}%`);
+    });
+
+    const raw: Record<string, string> | undefined = await qb.getRawOne();
+
+    let idx = 0;
+    return targetRegions.map((region) => ({
+      key: region.key,
+      label: region.label,
+      cities: region.cities.map((cityName) => ({
+        name: cityName,
+        count: parseInt(raw?.[`city_${idx++}`] ?? '0', 10),
+      })),
+    }));
+  }
+
+  /**
    * 发布活动
    * 仅 draft 状态可发布，发布后状态变为 published
+   * 事务保证活动状态和分类计数的原子性
    */
   async publish(id: string, userId: string): Promise<EventEntity> {
     const event = await this.findById(id);
@@ -191,12 +406,27 @@ export class EventService {
     event.status = 'published';
     event.publishedAt = new Date();
 
-    return this.eventRepository.save(event);
+    return this.dataSource.transaction(async (manager) => {
+      const saved = await manager.save(EventEntity, event);
+
+      // 同步分类活动计数
+      if (event.categoryId) {
+        await manager.increment(
+          CategoryEntity,
+          { id: event.categoryId },
+          'eventCount',
+          1,
+        );
+      }
+
+      return saved;
+    });
   }
 
   /**
    * 取消活动
    * 仅 published 状态可取消，取消后状态变为 cancelled
+   * 事务保证活动状态和分类计数的原子性
    */
   async cancel(id: string, userId: string): Promise<EventEntity> {
     const event = await this.findById(id);
@@ -208,7 +438,21 @@ export class EventService {
 
     event.status = 'cancelled';
 
-    return this.eventRepository.save(event);
+    return this.dataSource.transaction(async (manager) => {
+      const saved = await manager.save(EventEntity, event);
+
+      // 同步分类活动计数（GREATEST 防止负数）
+      if (event.categoryId) {
+        await manager
+          .createQueryBuilder()
+          .update(CategoryEntity)
+          .set({ eventCount: () => 'GREATEST("eventCount" - 1, 0)' })
+          .where('id = :id', { id: event.categoryId })
+          .execute();
+      }
+
+      return saved;
+    });
   }
 
   /**
@@ -279,18 +523,18 @@ export class EventService {
 
   /**
    * 获取用户报名的活动列表
-   * 注意：依赖 Registration 模块（Task 14），当前返回空列表
+   * TODO: 通过 registration 表关联查询，当前返回空列表
    */
   getMyRegisteredEvents(
     userId: string,
     query: MyEventsQueryDto,
-  ): { items: EventEntity[]; total: number } {
-    // TODO: Task 14 实现报名模块后，通过 registration 表关联查询
+  ): Promise<{ items: EventEntity[]; total: number }> {
+    // TODO: 通过 registration 表 JOIN events 实现真实查询
     this.logger.warn(
-      `getMyRegisteredEvents: Registration 模块尚未实现，用户 ${userId} 查询返回空列表`,
+      `getMyRegisteredEvents: 尚未实现关联查询，用户 ${userId} 返回空列表`,
     );
     void query; // 避免未使用参数警告
-    return { items: [], total: 0 };
+    return Promise.resolve({ items: [], total: 0 });
   }
 
   // ==================== 分享与二维码 ====================
@@ -580,7 +824,9 @@ export class EventService {
 
   /** 获取前端基础 URL，用于生成分享链接和二维码 */
   private get frontendBaseUrl(): string {
-    return process.env.FRONTEND_URL || 'http://localhost:5173';
+    return (
+      this.configService.get<string>('FRONTEND_URL') || 'http://localhost:5173'
+    );
   }
 
   /**
@@ -608,6 +854,21 @@ export class EventService {
   }
 
   /**
+   * 校验活动时间范围
+   * 开始时间必须早于结束时间
+   */
+  private validateEventTimeRange(
+    startTime: string | Date,
+    endTime: string | Date,
+  ): void {
+    const start = new Date(startTime);
+    const end = new Date(endTime);
+    if (start >= end) {
+      throw new BadRequestException('活动开始时间必须早于结束时间');
+    }
+  }
+
+  /**
    * 校验售卖时间窗口
    * 开售时间必须早于停售时间
    */
@@ -622,5 +883,13 @@ export class EventService {
         throw new BadRequestException('开售时间必须早于停售时间');
       }
     }
+  }
+
+  /**
+   * 转义 ILIKE 中的通配符，防止用户输入干扰模式匹配
+   * 配合 SQL ESCAPE '\\' 子句使用
+   */
+  private escapeLike(value: string): string {
+    return value.replace(/[%_\\]/g, '\\$&');
   }
 }

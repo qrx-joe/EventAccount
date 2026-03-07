@@ -26,6 +26,7 @@ import {
   CreateEventDto,
   UpdateEventDto,
   QueryEventDto,
+  QueryEventCitiesDto,
   MyEventsQueryDto,
 } from './event.dto.js';
 import { CreateTicketDto, UpdateTicketDto } from './ticket.dto.js';
@@ -131,6 +132,20 @@ export class EventController {
     return ApiResponseDto.ok(result);
   }
 
+  /**
+   * 获取发现页城市探索聚合
+   * 支持按区域筛选
+   */
+  @Get('cities')
+  @ApiOperation({ summary: '获取发现页城市探索聚合' })
+  @ApiResponse({ status: 200, description: '查询成功' })
+  async getDiscoverCityRegions(
+    @Query() query: QueryEventCitiesDto,
+  ): Promise<ApiResponseDto<unknown>> {
+    const result = await this.eventService.getDiscoverCityRegions(query);
+    return ApiResponseDto.ok(result);
+  }
+
   // ==================== 我的活动列表接口 ====================
 
   /**
@@ -163,11 +178,14 @@ export class EventController {
   @ApiBearerAuth()
   @UseGuards(JwtAuthGuard)
   @ApiResponse({ status: 200, description: '查询成功' })
-  getMyRegisteredEvents(
+  async getMyRegisteredEvents(
     @Query() query: MyEventsQueryDto,
     @Req() req: { user: JwtPayload },
-  ): ApiResponseDto<{ items: EventEntity[]; total: number }> {
-    const result = this.eventService.getMyRegisteredEvents(req.user.sub, query);
+  ): Promise<ApiResponseDto<{ items: EventEntity[]; total: number }>> {
+    const result = await this.eventService.getMyRegisteredEvents(
+      req.user.sub,
+      query,
+    );
     return ApiResponseDto.ok(result);
   }
 
@@ -304,8 +322,8 @@ export class EventController {
   }
 
   /**
-   * 获取活动详情
-   * 无需登录
+   * 获取活动详情（公开接口）
+   * 仅返回已发布且公开可见的活动，创建者信息不含手机号
    */
   @Get(':id')
   @ApiOperation({ summary: '获取活动详情' })
@@ -315,7 +333,7 @@ export class EventController {
   async findById(
     @Param('id') id: string,
   ): Promise<ApiResponseDto<EventEntity>> {
-    const event = await this.eventService.findById(id);
+    const event = await this.eventService.findPublicById(id);
     return ApiResponseDto.ok(event);
   }
 

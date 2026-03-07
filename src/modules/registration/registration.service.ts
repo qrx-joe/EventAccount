@@ -6,7 +6,12 @@ import {
   ConflictException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, DataSource, FindOptionsWhere } from 'typeorm';
+import {
+  Repository,
+  DataSource,
+  FindOptionsWhere,
+  EntityManager,
+} from 'typeorm';
 import * as QRCode from 'qrcode';
 import { RegistrationEntity } from './registration.entity.js';
 import { EventRegistrationFormEntity } from './event-registration-form.entity.js';
@@ -68,10 +73,9 @@ export class RegistrationService {
       throw new ConflictException('您已报名此活动');
     }
 
-    // 校验门票
-    let ticket: EventTicketEntity | null = null;
+    // 校验门票（快速失败检查，精确控制在事务内）
     if (dto.ticketId) {
-      ticket = await this.ticketRepository.findOne({
+      const ticket = await this.ticketRepository.findOne({
         where: { id: dto.ticketId, eventId },
       });
       if (!ticket) {
@@ -80,75 +84,89 @@ export class RegistrationService {
       if (ticket.status !== 'active') {
         throw new BadRequestException('该门票已停售');
       }
-      // 检查门票名额
-      if (ticket.quantity > 0 && ticket.soldCount >= ticket.quantity) {
-        throw new BadRequestException('该门票已售罄');
-      }
     }
 
     // 校验报名问卷必填字段
     await this.validateFormData(eventId, dto.formData);
 
-    // 确定报名状态
-    let status = 'pending';
-    if (event.requireApproval) {
-      // 需要审核，状态保持 pending
-      status = 'pending';
-    } else {
-      // 不需要审核，直接通过
-      status = 'approved';
-    }
+    // 确定初始报名状态（requireApproval 不受并发影响）
+    const initialStatus = event.requireApproval ? 'pending' : 'approved';
 
-    // 检查活动总名额
-    if (event.capacity > 0) {
-      const approvedCount = await this.registrationRepository.count({
-        where: { eventId, status: 'approved' },
-      });
-      if (approvedCount >= event.capacity) {
-        // 名额已满，加入候补
-        status = 'waitlisted';
-      }
-    }
-
-    // 使用事务处理报名和门票计数
-    const registration = await this.dataSource.transaction(async (manager) => {
-      // 如果之前取消过，复用记录
-      let reg: RegistrationEntity;
-      if (existing && existing.status === 'cancelled') {
-        existing.status = status;
-        existing.ticketId = dto.ticketId || null;
-        existing.email = dto.email || null;
-        existing.formData = dto.formData || null;
-        existing.checkInStatus = 'not_checked_in';
-        existing.checkedInAt = null;
-        reg = await manager.save(RegistrationEntity, existing);
-      } else {
-        reg = manager.create(RegistrationEntity, {
-          eventId,
-          userId,
-          ticketId: dto.ticketId || null,
-          status,
-          email: dto.email || null,
-          formData: dto.formData || null,
+    // 使用事务 + 悲观锁处理报名，防止并发容量超卖
+    const { registration, finalStatus } = await this.dataSource.transaction(
+      async (manager) => {
+        // 锁住活动行，安全检查容量
+        const lockedEvent = await manager.findOne(EventEntity, {
+          where: { id: eventId },
+          lock: { mode: 'pessimistic_write' },
         });
-        reg = await manager.save(RegistrationEntity, reg);
-      }
+        if (!lockedEvent) throw new NotFoundException('活动不存在');
 
-      // 更新门票已售数量
-      if (ticket && status === 'approved') {
-        await manager.increment(
-          EventTicketEntity,
-          { id: ticket.id },
-          'soldCount',
-          1,
-        );
-      }
+        let status = initialStatus;
 
-      return reg;
-    });
+        // 在事务内检查活动总名额（悲观锁防止并发超卖）
+        if (lockedEvent.capacity > 0 && status === 'approved') {
+          const approvedCount = await manager.count(RegistrationEntity, {
+            where: { eventId, status: 'approved' },
+          });
+          if (approvedCount >= lockedEvent.capacity) {
+            status = 'waitlisted';
+          }
+        }
+
+        // 在事务内重新检查门票名额（防止并发售罄）
+        if (dto.ticketId && status === 'approved') {
+          const lockedTicket = await manager.findOne(EventTicketEntity, {
+            where: { id: dto.ticketId, eventId },
+            lock: { mode: 'pessimistic_write' },
+          });
+          if (
+            lockedTicket &&
+            lockedTicket.quantity > 0 &&
+            lockedTicket.soldCount >= lockedTicket.quantity
+          ) {
+            throw new BadRequestException('该门票已售罄');
+          }
+        }
+
+        // 如果之前取消过，复用记录
+        let reg: RegistrationEntity;
+        if (existing && existing.status === 'cancelled') {
+          existing.status = status;
+          existing.ticketId = dto.ticketId || null;
+          existing.email = dto.email || null;
+          existing.formData = dto.formData || null;
+          existing.checkInStatus = 'not_checked_in';
+          existing.checkedInAt = null;
+          reg = await manager.save(RegistrationEntity, existing);
+        } else {
+          reg = manager.create(RegistrationEntity, {
+            eventId,
+            userId,
+            ticketId: dto.ticketId || null,
+            status,
+            email: dto.email || null,
+            formData: dto.formData || null,
+          });
+          reg = await manager.save(RegistrationEntity, reg);
+        }
+
+        // 更新门票已售数量
+        if (dto.ticketId && status === 'approved') {
+          await manager.increment(
+            EventTicketEntity,
+            { id: dto.ticketId },
+            'soldCount',
+            1,
+          );
+        }
+
+        return { registration: reg, finalStatus: status };
+      },
+    );
 
     // 报名成功后发送确认通知（事务外异步执行，不影响报名结果）
-    if (status === 'approved') {
+    if (finalStatus === 'approved') {
       this.notificationService
         .sendRegistrationConfirmation(
           userId,
@@ -167,23 +185,25 @@ export class RegistrationService {
   /**
    * 取消报名
    * 仅允许报名者本人取消
+   * 事务内悲观锁读取，防止并发状态冲突
    */
   async cancel(eventId: string, userId: string): Promise<RegistrationEntity> {
-    const registration = await this.registrationRepository.findOne({
-      where: { eventId, userId },
-    });
-    if (!registration) {
-      throw new NotFoundException('报名记录不存在');
-    }
+    return this.dataSource.transaction(async (manager) => {
+      const registration = await manager.findOne(RegistrationEntity, {
+        where: { eventId, userId },
+        lock: { mode: 'pessimistic_write' },
+      });
+      if (!registration) {
+        throw new NotFoundException('报名记录不存在');
+      }
 
-    if (registration.status === 'cancelled') {
-      throw new BadRequestException('报名已取消');
-    }
+      if (registration.status === 'cancelled') {
+        throw new BadRequestException('报名已取消');
+      }
 
-    const previousStatus = registration.status;
-    registration.status = 'cancelled';
+      const previousStatus = registration.status;
+      registration.status = 'cancelled';
 
-    const result = await this.dataSource.transaction(async (manager) => {
       const saved = await manager.save(RegistrationEntity, registration);
 
       // 如果之前是 approved 状态且有门票，减少已售数量
@@ -196,15 +216,13 @@ export class RegistrationService {
         );
       }
 
+      // 取消后在同一事务内递补候补，防止并发超卖
+      if (previousStatus === 'approved') {
+        await this.promoteWaitlisted(eventId, manager);
+      }
+
       return saved;
     });
-
-    // 取消后检查是否有候补可以递补
-    if (previousStatus === 'approved') {
-      await this.promoteWaitlisted(eventId);
-    }
-
-    return result;
   }
 
   /**
@@ -323,6 +341,22 @@ export class RegistrationService {
     }
 
     return this.dataSource.transaction(async (manager) => {
+      // 悲观锁检查活动容量，防止并发审批超卖
+      if (event.capacity > 0) {
+        const lockedEvent = await manager.findOne(EventEntity, {
+          where: { id: event.id },
+          lock: { mode: 'pessimistic_write' },
+        });
+        if (lockedEvent) {
+          const approvedCount = await manager.count(RegistrationEntity, {
+            where: { eventId: event.id, status: 'approved' },
+          });
+          if (approvedCount >= lockedEvent.capacity) {
+            throw new BadRequestException('活动名额已满，无法审核通过');
+          }
+        }
+      }
+
       registration.status = 'approved';
       const saved = await manager.save(RegistrationEntity, registration);
 
@@ -343,6 +377,7 @@ export class RegistrationService {
   /**
    * 审核拒绝报名
    * 仅活动创建者可操作
+   * 注意：仅 pending/waitlisted 可拒绝，approved 状态需通过 cancel 取消
    */
   async reject(
     registrationId: string,
@@ -372,8 +407,10 @@ export class RegistrationService {
       throw new ForbiddenException('无权操作此活动');
     }
 
-    registration.status = 'rejected';
-    return this.registrationRepository.save(registration);
+    return this.dataSource.transaction(async (manager) => {
+      registration.status = 'rejected';
+      return manager.save(RegistrationEntity, registration);
+    });
   }
 
   /**
@@ -514,9 +551,12 @@ export class RegistrationService {
   /**
    * 获取报名确认信封数据
    * 包含活动信息、报名状态、签到二维码
-   * 公开接口，通过 registrationId 查询
+   * 仅报名者本人或活动创建者可访问
    */
-  async getConfirmation(registrationId: string): Promise<{
+  async getConfirmation(
+    registrationId: string,
+    userId: string,
+  ): Promise<{
     registration: RegistrationEntity;
     event: EventEntity;
     qrCode: string;
@@ -533,6 +573,11 @@ export class RegistrationService {
     });
     if (!event) {
       throw new NotFoundException('活动不存在');
+    }
+
+    // 权限校验：仅报名者本人或活动创建者可查看
+    if (registration.userId !== userId && event.creatorId !== userId) {
+      throw new ForbiddenException('无权查看此报名确认信息');
     }
 
     // 生成签到二维码（内容为 registrationId，用于现场扫码签到）
@@ -612,14 +657,20 @@ export class RegistrationService {
   /**
    * 候补递补
    * 当有人取消报名时，按报名时间顺序递补候补名单中的用户
+   * 必须在事务内调用，通过悲观锁防止并发超卖
    */
-  private async promoteWaitlisted(eventId: string): Promise<void> {
-    const event = await this.eventRepository.findOne({
+  private async promoteWaitlisted(
+    eventId: string,
+    manager: EntityManager,
+  ): Promise<void> {
+    // 悲观锁锁住活动行，防止并发递补
+    const event = await manager.findOne(EventEntity, {
       where: { id: eventId },
+      lock: { mode: 'pessimistic_write' },
     });
     if (!event || event.capacity <= 0) return;
 
-    const approvedCount = await this.registrationRepository.count({
+    const approvedCount = await manager.count(RegistrationEntity, {
       where: { eventId, status: 'approved' },
     });
 
@@ -627,7 +678,7 @@ export class RegistrationService {
     if (availableSlots <= 0) return;
 
     // 按报名时间排序，取最早的候补
-    const waitlisted = await this.registrationRepository.find({
+    const waitlisted = await manager.find(RegistrationEntity, {
       where: { eventId, status: 'waitlisted' },
       order: { createdAt: 'ASC' },
       take: availableSlots,
@@ -635,7 +686,40 @@ export class RegistrationService {
 
     if (waitlisted.length > 0) {
       waitlisted.forEach((reg) => (reg.status = 'approved'));
-      await this.registrationRepository.save(waitlisted);
+      await manager.save(RegistrationEntity, waitlisted);
+
+      // 递补的报名如果关联了门票，需要递增门票已售数量（含容量检查）
+      const ticketIncrements = new Map<string, number>();
+      for (const reg of waitlisted) {
+        if (reg.ticketId) {
+          ticketIncrements.set(
+            reg.ticketId,
+            (ticketIncrements.get(reg.ticketId) ?? 0) + 1,
+          );
+        }
+      }
+      for (const [ticketId, count] of ticketIncrements) {
+        // 悲观锁门票行，确保递补不超过门票容量
+        const lockedTicket = await manager.findOne(EventTicketEntity, {
+          where: { id: ticketId },
+          lock: { mode: 'pessimistic_write' },
+        });
+        if (!lockedTicket) continue;
+
+        // 限量门票需检查容量，防止超卖
+        const safeCount =
+          lockedTicket.quantity > 0
+            ? Math.min(count, lockedTicket.quantity - lockedTicket.soldCount)
+            : count;
+        if (safeCount > 0) {
+          await manager.increment(
+            EventTicketEntity,
+            { id: ticketId },
+            'soldCount',
+            safeCount,
+          );
+        }
+      }
     }
   }
 }
