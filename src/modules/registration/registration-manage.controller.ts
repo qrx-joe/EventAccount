@@ -82,21 +82,30 @@ export class RegistrationManageController {
 
   /**
    * 获取报名确认信封
-   * 公开接口，返回活动信息、报名状态和签到二维码
+   * 需要登录，仅报名者本人或活动创建者可访问
    */
   @Get(':id/confirmation')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
   @ApiOperation({ summary: '获取报名确认信封' })
   @ApiParam({ name: 'id', description: '报名记录 ID' })
   @ApiResponse({ status: 200, description: '查询成功' })
+  @ApiResponse({ status: 403, description: '无权查看此报名' })
   @ApiResponse({ status: 404, description: '报名记录不存在' })
-  async getConfirmation(@Param('id') id: string): Promise<
+  async getConfirmation(
+    @Param('id') id: string,
+    @Request() req: { user: JwtPayload },
+  ): Promise<
     ApiResponseDto<{
       registration: RegistrationEntity;
       event: EventEntity;
       qrCode: string;
     }>
   > {
-    const result = await this.registrationService.getConfirmation(id);
+    const result = await this.registrationService.getConfirmation(
+      id,
+      req.user.sub,
+    );
     return ApiResponseDto.ok(result);
   }
 

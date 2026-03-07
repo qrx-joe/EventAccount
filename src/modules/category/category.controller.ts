@@ -58,6 +58,27 @@ export class CategoryController {
   }
 
   /**
+   * 查询当前用户是否已订阅指定分类
+   * 需要登录
+   */
+  @Get(':id/subscription')
+  @ApiOperation({ summary: '查询订阅状态' })
+  @ApiBearerAuth()
+  @UseGuards(JwtAuthGuard)
+  @ApiParam({ name: 'id', description: '分类 ID' })
+  @ApiResponse({ status: 200, description: '查询成功' })
+  async checkSubscription(
+    @Param('id') id: string,
+    @Req() req: { user: JwtPayload },
+  ): Promise<ApiResponseDto<{ subscribed: boolean }>> {
+    const subscribed = await this.categoryService.isSubscribed(
+      id,
+      req.user.sub,
+    );
+    return ApiResponseDto.ok({ subscribed });
+  }
+
+  /**
    * 订阅分类
    * 需要登录
    */

@@ -69,14 +69,18 @@ export class CreateEventDto {
   @IsString()
   locationAddress?: string;
 
-  @ApiPropertyOptional({ description: '纬度' })
+  @ApiPropertyOptional({ description: '纬度', example: 31.2304 })
   @IsOptional()
   @Type(() => Number)
+  @Min(-90)
+  @Max(90)
   latitude?: number;
 
-  @ApiPropertyOptional({ description: '经度' })
+  @ApiPropertyOptional({ description: '经度', example: 121.4737 })
   @IsOptional()
   @Type(() => Number)
+  @Min(-180)
+  @Max(180)
   longitude?: number;
 
   @ApiPropertyOptional({ description: '线上链接' })
@@ -185,14 +189,18 @@ export class UpdateEventDto {
   @IsString()
   locationAddress?: string;
 
-  @ApiPropertyOptional({ description: '纬度' })
+  @ApiPropertyOptional({ description: '纬度', example: 31.2304 })
   @IsOptional()
   @Type(() => Number)
+  @Min(-90)
+  @Max(90)
   latitude?: number;
 
-  @ApiPropertyOptional({ description: '经度' })
+  @ApiPropertyOptional({ description: '经度', example: 121.4737 })
   @IsOptional()
   @Type(() => Number)
+  @Min(-180)
+  @Max(180)
   longitude?: number;
 
   @ApiPropertyOptional({ description: '线上链接' })
@@ -290,7 +298,38 @@ export class QueryEventDto {
   @ApiPropertyOptional({ description: '关键词搜索' })
   @IsOptional()
   @IsString()
+  @MaxLength(100)
   keyword?: string;
+
+  @ApiPropertyOptional({ description: '城市筛选（匹配地点名称/地址）' })
+  @IsOptional()
+  @IsString()
+  @MaxLength(50)
+  city?: string;
+
+  @ApiPropertyOptional({ description: '开始日期（ISO 8601）' })
+  @IsOptional()
+  @IsDateString()
+  dateStart?: string;
+
+  @ApiPropertyOptional({ description: '结束日期（ISO 8601）' })
+  @IsOptional()
+  @IsDateString()
+  dateEnd?: string;
+
+  @ApiPropertyOptional({ description: '地点类型', enum: ['offline', 'online'] })
+  @IsOptional()
+  @IsIn(['offline', 'online'])
+  locationType?: string;
+
+  @ApiPropertyOptional({
+    description: '排序方式',
+    enum: ['latest', 'upcoming', 'trending'],
+    default: 'latest',
+  })
+  @IsOptional()
+  @IsIn(['latest', 'upcoming', 'trending'])
+  sortBy?: string;
 
   @ApiPropertyOptional({ description: '页码', default: 1 })
   @IsOptional()
@@ -306,4 +345,17 @@ export class QueryEventDto {
   @Min(1)
   @Max(100)
   limit?: number = 20;
+}
+
+/**
+ * 城市探索查询 DTO
+ */
+export class QueryEventCitiesDto {
+  @ApiPropertyOptional({
+    description: '区域筛选',
+    enum: ['asia', 'north-america', 'europe'],
+  })
+  @IsOptional()
+  @IsIn(['asia', 'north-america', 'europe'])
+  region?: 'asia' | 'north-america' | 'europe';
 }
