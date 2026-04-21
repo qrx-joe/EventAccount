@@ -1,205 +1,61 @@
-# CLAUDE.md 项目约束
+# T3 Program — 线上活动报名与管理平台
 
-## 项目特定指令
+仿照 Luma.com，面向一线及新一线城市的线上活动报名与管理平台，提供活动创建、报名、签到等一站式服务。
 
-- 你在任何时候都不需要 npm run dev(前端)或 npm run start:dev(后端)，因为我一般都会保持着前后端的运行。
-- 你有权限执行所有 sudo 权限的命令。我的用户密码是\*Heyi526526526，在你需要 sudo 权限的时候，你可以使用这个密码。
-- 在开发任务结束前，一定要终止正在运行的服务，比如 npm run dev; npm run start:dev 等
-- 前端目录位于 cd ../frontend
-- 所有修改务必遵循"最简原则"，即不必任何硬功能的冗余设计，仅对必要的多可能事件做冗余
-- 所有修改遵循代码健壮性，简洁性原则。所有模块必须遵循当前代码中已有的设计风格和命名风格，尽量复用已有模块
-- 注释丰富
-- 日志输出不用太多，但前后端关键地方都需要输出
-- 不要做任何的旧代码兼容，不要做向后兼容，这样能让问题暴露出来
-- 记得更新项目文档
-- 中文回答我的问题
-- 对于所有id，除非我进行指定，否则统一使用后端封装的uuid工具类，生成uuidv7 ，不要使用pgsql中的函数进行管理，工具类在 src/shared/utils/id-generator.ts
-- 对于所有接口的返回，应该使用后端统一定义的DTO, src/common/dto/api-response.dto.ts , 进行请求体的构造与返回
-- **重要**：当遇到问题时，优先考虑编译错误而不是缓存问题。TypeScript 编译错误必须立即修复。
+## 项目结构
 
-### 🎯 核心开发原则（实战总结）
-
-#### 🔧 代码开发七原则
-
-1. **单一职责原则** - 每个服务、方法只负责一个明确的职责域，避免职责混乱
-2. **最简代码原则** - 不做向后兼容，宁愿破坏性更新也要保证代码最简化，删除所有冗余代码
-3. **类型严格原则** - 所有 TypeScript 类型必须正确，不使用 any，编译错误必须立即修复
-4. **KISS 原则** - 保持简单直接，如果需要解释就是太复杂了
-5. **文档置信度原则** - 绝不基于推测写代码，必须基于真实可验证的技术文档。特别是涉及支付、数据库、API 等关键功能时，如果文档置信度不高，必须停止并要求用户提供准确资料
-6. **充分测试** - 任何开发都可能出现严重异常，测试绝对不可跳过。后端一定要进行完整的接口测试再下一步；前端一定要用playwright来进行端到端测试才能停止
-
-#### 📋 任务执行标准流程
-
-1. **修改前说明** - 每次修改任何文件前，必须告诉用户修改原因和遵循的核心原则
-2. **完整阅读** - 完整阅读所有相关文件，一行都不能少，识别功能重叠和架构模式
-3. **TodoWrite 管理** - 使用 TodoWrite 工具规划和跟踪任务进度，确保不遗漏任务
-4. **编译优先** - 每次修改后立即检查编译，TypeScript 编译错误优先于缓存问题
-5. **功能检查** - 修改后检查是否有重复功能，遵循单一职责原则
-
-### 联网信息获取
-
-- 联网信息获取优先使用你的搜索工具。内容搜索优先使用搜索引擎，如果看到了具体的内容结果，一定要充分利用playwright来获取完整信息。playwright是天，多用playwright,他是王炸
-
-### 鉴权信息
-
-- 如果需要鉴权，这是一个有效的 token：eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJ0ZXN0LXVzZXItaWQtMDAxIiwiaWF0IjoxNzcyMzIwMzg1LCJleHAiOjE3NzI5MjUxODV9.9TgyHIEVHP_HkoBCkNp6oyiA9TRZDZPIn1chNt8InDU
-- 或者过期，用这个：eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJ0ZXN0LXVzZXItaWQtMDAyIiwiaWF0IjoxNzcyMzIwNDg2LCJleHAiOjE3NzI5MjUyODZ9.4kGYY-cYd7z-NsB68eZPa84YBxn_Z89AtmPO4x9nyaY
-
-## Development Guidelines
-
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
-
-### Philosophy
-
-#### Core Beliefs
-
-- **Incremental progress over big bangs** - Small changes that compile and pass tests
-- **Learning from existing code** - Study and plan before implementing
-- **Pragmatic over dogmatic** - Adapt to project reality
-- **Clear intent over clever code** - Be boring and obvious
-
-### Simplicity Means
-
-- Single responsibility per function/class
-- Avoid premature abstractions
-- No clever tricks - choose the boring solution
-- If you need to explain it, it's too complex
-
-## Process
-
-### 1. Planning & Staging
-
-Break complex work into 3-5 stages. Document in `IMPLEMENTATION_PLAN.md`:
-
-```markdown
-## Stage N: [Name]
-
-**Goal**: [Specific deliverable]
-**Success Criteria**: [Testable outcomes]
-**Tests**: [Specific test cases]
-**Status**: [Not Started|In Progress|Complete]
+```
+t3-program/
+├── frontend/    # Vue 3 + shadcn-vue + Tailwind CSS v4
+├── backend/     # NestJS + TypeORM + PostgreSQL
+└── doc/         # 项目文档（需求方案等）
 ```
 
-- Update status as you progress
-- Remove file when all stages are done
+**前端任务** → 阅读 `frontend/CLAUDE.md`
+**后端任务** → 阅读 `backend/CLAUDE.md`
 
-### 2. Implementation Flow
+## 通用约定
 
-1. **Understand** - Study existing patterns in codebase
-2. **Test** - Write test first (red)
-3. **Implement** - Minimal code to pass (green)
-4. **Refactor** - Clean up with tests passing
-5. **Commit** - With clear message linking to plan
+### 语言
 
-### 3. When Stuck (After 3 Attempts)
+- 代码注释、commit message、文档一律中文
+- 变量/函数/类名用英文
 
-**CRITICAL**: Maximum 3 attempts per issue, then STOP.
+### API 契约
 
-1. **Document what failed**:
-   - What you tried
-   - Specific error messages
-   - Why you think it failed
+前后端共用统一响应体结构（定义在后端 `src/common/dto/api-response.dto.ts`）：
 
-2. **Research alternatives**:
-   - Find 2-3 similar implementations
-   - Note different approaches used
+```typescript
+{
+  success: boolean    // 业务是否成功
+  code: number        // HTTP 状态码（200/201/4xx/5xx）
+  message: string     // 提示信息
+  data: T | null      // 成功时为数据，失败时为 null
+  timestamp: string   // ISO 8601 时间戳
+}
+```
 
-3. **Question fundamentals**:
-   - Is this the right abstraction level?
-   - Can this be split into smaller problems?
-   - Is there a simpler approach entirely?
+前端类型定义在 `frontend/src/types/index.ts` 中的 `ApiResponse<T>` 必须与此保持一致。
 
-4. **Try different angle**:
-   - Different library/framework feature?
-   - Different architectural pattern?
-   - Remove abstraction instead of adding?
+### ID 生成
 
-## Technical Standards
+所有实体 ID 使用后端封装的 UUIDv7 工具类（`backend/src/shared/utils/id-generator.ts`），不使用 PostgreSQL 内置函数。
 
-### Architecture Principles
+### 开发环境
 
-- **Composition over inheritance** - Use dependency injection
-- **Interfaces over singletons** - Enable testing and flexibility
-- **Explicit over implicit** - Clear data flow and dependencies
-- **Test-driven when possible** - Never disable tests, fix them
+- 前后端开发服务器通常已在运行，不需要额外启动
+- 前端 Vite dev server 通过 `/api` 代理到后端
+- 不做旧代码兼容，不做向后兼容，让问题暴露出来
 
-### Code Quality
+### 文档规范
 
-- **Every commit must**:
-  - Compile successfully
-  - Pass all existing tests
-  - Include tests for new functionality
-  - Follow project formatting/linting
+- 文档前后端一体化，统一在 `backend/docs/` 目录下按模块名命名（如 `auth.md`、`user.md`）
+- 遵循**文档即代码**原则：架构文档写架构思路、设计准则和业务逻辑，代码细节通过注释体现
+- 保证文档与代码版本接近，代码变更时同步更新对应模块文档
 
-- **Before committing**:
-  - Run formatters/linters
-  - Self-review changes
-  - Ensure commit message explains "why"
+### 代码原则
 
-### Error Handling
-
-- Fail fast with descriptive messages
-- Include context for debugging
-- Handle errors at appropriate level
-- Never silently swallow exceptions
-
-## Decision Framework
-
-When multiple valid approaches exist, choose based on:
-
-1. **Testability** - Can I easily test this?
-2. **Readability** - Will someone understand this in 6 months?
-3. **Consistency** - Does this match project patterns?
-4. **Simplicity** - Is this the simplest solution that works?
-5. **Reversibility** - How hard to change later?
-
-## Project Integration
-
-### Learning the Codebase
-
-- Find 3 similar features/components
-- Identify common patterns and conventions
-- Use same libraries/utilities when possible
-- Follow existing test patterns
-
-### Tooling
-
-- Use project's existing build system
-- Use project's test framework
-- Use project's formatter/linter settings
-- Don't introduce new tools without strong justification
-
-## Quality Gates
-
-### Definition of Done
-
-- [ ] Tests written and passing
-- [ ] Code follows project conventions
-- [ ] No linter/formatter warnings
-- [ ] Commit messages are clear
-- [ ] Implementation matches plan
-- [ ] No TODOs without issue numbers
-
-### Test Guidelines
-
-- Test behavior, not implementation
-- One assertion per test when possible
-- Clear test names describing scenario
-- Use existing test utilities/helpers
-- Tests should be deterministic
-
-## Important Reminders
-
-**NEVER**:
-
-- Use `--no-verify` to bypass commit hooks
-- Disable tests instead of fixing them
-- Commit code that doesn't compile
-- Make assumptions - verify with existing code
-
-**ALWAYS**:
-
-- Commit working code incrementally
-- Update plan documentation as you go
-- Learn from existing implementations
-- Stop after 3 failed attempts and reassess
+- **最简原则** — 不做冗余设计，只对必要的多可能事件做冗余
+- **禁止 any** — TypeScript strict mode，前后端均开启
+- **改前先读** — 完整阅读相关文件再动手
+- **改后必测** — 后端做完整接口测试，前端做端到端测试
