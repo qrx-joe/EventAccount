@@ -6,6 +6,7 @@
 
 # 开发日志
 *.dev.log
+*-dev.log
 
 # 本地工具清单
 plugin_list.txt
