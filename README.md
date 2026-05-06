@@ -53,7 +53,7 @@
 
 | 模块 | 职责 | 负责人 |
 |------|------|--------|
-| **认证模块** | 注册/登录(密码/短信/邮箱)/找回密码/会话管理 | ✅ 我 |
+| **认证模块** | 注册/登录(密码/短信/邮箱)/找回密码/会话管理 | 团队协作 |
 | **个人中心** | 账号设置、资料编辑、安全变更(换绑手机/邮箱/密码)、注销 | ✅ 我 |
 | **发现模块** | 活动探索、社区浏览、城市发现、分类订阅、多维筛选搜索 | ✅ 我 |
 | **落地页** | 首页/About/Features/Help/Terms/Privacy 未登录访客入口 | ✅ 我 |
@@ -120,19 +120,15 @@
 - 社区详情页支持"列表 / 日历 / 地图"三视图切换
 - E2E 覆盖搜索、路由深链、筛选联动、社区详情、日历分页 6 个 spec 文件,共计 12+ 个用例
 
-**后端 API 设计**
+**后端 API 设计（发现模块新增查询能力）**
 
 - 新增 `GET /events` 多维筛选:`keyword` / `city` / `categoryId` / `dateStart` / `dateEnd` / `locationType` / `sortBy`
   - QueryBuilder 动态拼接 + `escapeLike()` 转义 + `ESCAPE '\\'`,杜绝通配符注入
   - **安全默认值**:未传 status 时强制 `status = 'published' AND visibility = 'public'`,防止草稿与私密活动泄露
   - 三种排序策略:`latest`(创建时间) / `upcoming`(未来活动正序) / `trending`(门票销量子查询)
 - 新增 `GET /events/cities` 城市聚合:**单条 SQL** 用 `SUM(CASE WHEN ILIKE :param THEN 1 ELSE 0 END)` 替代 N 次 COUNT,把 19 次查询降为 1 次
-- 活动生命周期事务化:`publish` / `cancel` / `delete` 在 `dataSource.transaction()` 内原子更新 `Category.eventCount`,取消使用 `GREATEST(eventCount - 1, 0)` 防负数
-- **报名并发安全**(关键改造):`register` / `cancel` / `approve` / `reject` / `promoteWaitlisted` 全部上 `pessimistic_write` 悲观锁
-  - 报名:事务内锁活动行 → 容量检查 → 锁门票行 → 名额检查 → 创建记录 → `soldCount++`
-  - 取消 + 候补递补放在**同一事务**内,消除"取消释放名额 → 双倍递补"的竞态窗口
-  - 候补递补用 `Math.min(count, quantity - soldCount)` 计算安全数量,即使锁内仍多重防超卖
-- `GET /registrations/:id/confirmation` 从公开接口改造为 JWT + 本人 / 创建者权限校验,防信息泄露
+
+> 发现模块同时**消费**活动管理、报名管理模块的写接口（报名、取消、审核、活动发布/取消等），这些写操作的事务化与并发安全设计详见 [`docs/event-架构文档.md`](docs/event-架构文档.md) 与 [`docs/发现模块执行方案.md`](docs/发现模块执行方案.md)。
 
 ---
 
