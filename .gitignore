@@ -1,14 +1,16 @@
-node_modules/
-dist/
-.env
-.env.*
-!.env.example
-!.env.dev
-!.env.prod
-*.log
-logs/
-coverage/
-.idea/
-.vscode/
-*.swp
+# Claude Code 配置
+.claude/
+
+# Playwright MCP 配置
+.playwright-mcp/
+
+# 开发日志
+*.dev.log
+*-dev.log
+
+# 本地工具清单
+plugin_list.txt
+
+# OS
 .DS_Store
+Thumbs.db
